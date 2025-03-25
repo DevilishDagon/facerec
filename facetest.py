@@ -308,7 +308,7 @@ class LockerAccessApp:
         delay = max(1, int((1/30 - processing_time) * 1000))  # Aim for ~30 FPS
         
         # Schedule next update
-        self.master.after(delay, self.update_video))
+        self.master.after(delay, self.update_video)
 
 def register_face(name):
     global known_encodings, known_names, lockers
