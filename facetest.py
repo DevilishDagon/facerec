@@ -257,42 +257,42 @@ class LockerAccessApp:
             self.status_var.set(f"Error closing locker: {e}")
     
     def update_video(self):
-    # Capture frame from PiCamera
-    frame = picam2.capture_array()
-    
-    # Convert to RGB for face recognition
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-    # Detect faces
-    face_locations = face_recognition.face_locations(rgb_frame)
-    face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
-    
-    # Process each detected face
-    for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-        # Compare face with known faces
-        matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=THRESHOLD)
-        name = "Unknown"
+        # Capture frame from PiCamera
+        frame = picam2.capture_array()
         
-        if True in matches:
-            first_match_index = matches.index(True)
-            name = known_names[first_match_index]
+        # Convert to RGB for face recognition
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # Detect faces
+        face_locations = face_recognition.face_locations(rgb_frame)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+        
+        # Process each detected face
+        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+            # Compare face with known faces
+            matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=THRESHOLD)
+            name = "Unknown"
             
-            # Open locker for recognized user
-            if name != "Unknown":
-                self.open_locker(name)
+            if True in matches:
+                first_match_index = matches.index(True)
+                name = known_names[first_match_index]
+                
+                # Open locker for recognized user
+                if name != "Unknown":
+                    self.open_locker(name)
+            
+            # Draw rectangle around face
+            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+            cv2.putText(frame, name, (left, top-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
         
-        # Draw rectangle around face
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-        cv2.putText(frame, name, (left, top-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
-    
-    # Convert frame directly to PhotoImage without additional color conversion
-    img = Image.fromarray(frame)
-    imgtk = ImageTk.PhotoImage(image=img)
-    self.video_label.imgtk = imgtk
-    self.video_label.configure(image=imgtk)
-    
-    # Schedule next update
-    self.master.after(50, self.update_video)
+        # Convert frame directly to PhotoImage without additional color conversion
+        img = Image.fromarray(frame)
+        imgtk = ImageTk.PhotoImage(image=img)
+        self.video_label.imgtk = imgtk
+        self.video_label.configure(image=imgtk)
+        
+        # Schedule next update
+        self.master.after(50, self.update_video)
 
 def register_face(name):
     global known_encodings, known_names, lockers
