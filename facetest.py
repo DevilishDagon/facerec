@@ -230,6 +230,32 @@ class LockerAccessApp:
             GPIO.cleanup()
             self.master.quit()
     
+    def open_locker(self, name):
+        if name not in lockers:
+            self.status_var.set(f"No locker assigned for {name}")
+            return
+        
+        locker_info = lockers[name]
+        gpio_pin = locker_info['gpio']
+        
+        try:
+            # Unlock the locker
+            GPIO.output(gpio_pin, GPIO.HIGH)
+            self.status_var.set(f"Locker {locker_info['locker']} opened")
+            
+            # Schedule locker closure
+            self.master.after(5000, lambda: self.close_locker(gpio_pin, locker_info['locker']))
+        
+        except Exception as e:
+            self.status_var.set(f"Error opening locker: {e}")
+    
+    def close_locker(self, gpio_pin, locker_number):
+        try:
+            GPIO.output(gpio_pin, GPIO.LOW)
+            self.status_var.set(f"Locker {locker_number} closed")
+        except Exception as e:
+            self.status_var.set(f"Error closing locker: {e}")
+    
     def update_video(self):
         # Rest of the method remains the same as in the original script
         # Capture frame from PiCamera
@@ -268,8 +294,6 @@ class LockerAccessApp:
         
         # Schedule next update
         self.master.after(50, self.update_video)
-    
-    # Rest of the methods remain the same
 
 def register_face(name):
     global known_encodings, known_names, lockers
