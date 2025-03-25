@@ -155,15 +155,39 @@ def exit_program():
     cv2.destroyAllWindows()
     exit()
 
-# Minimal test loop (replace this with your full loop/UI logic)
+# Main loop with face recognition and display
 if __name__ == "__main__":
     load_encodings()
     load_lockers()
     try:
         while True:
-            name = input("Enter name to register or 'exit': ").strip().lower()
-            if name == "exit":
+            frame = capture_frame()
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            face_locations = face_recognition.face_locations(rgb_frame)
+            face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+
+            for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+                name = "Unknown"
+                if known_encodings:
+                    distances = face_recognition.face_distance(known_encodings, face_encoding)
+                    best_match_index = np.argmin(distances)
+                    if distances[best_match_index] < THRESHOLD:
+                        name = known_names[best_match_index]
+
+                cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0) if name != "Unknown" else (0, 0, 255), 2)
+                label = name
+                cv2.putText(frame, label, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+                if name != "Unknown" and name in lockers:
+                    gpio = lockers[name]["gpio"]
+                    GPIO.output(gpio, GPIO.HIGH)
+                    time.sleep(5)
+                    GPIO.output(gpio, GPIO.LOW)
+                    print(f"Unlocked locker {lockers[name]['locker']} for {name}")
+
+            cv2.imshow("Locker Access", frame)
+            if cv2.waitKey(1) & 0xFF == 27:
                 break
-            register_face(name)
+
     finally:
         exit_program()
