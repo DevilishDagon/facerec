@@ -713,12 +713,12 @@ while True:
                    cv2.FONT_HERSHEY_SIMPLEX, font_size, (255, 255, 255), 1)
     
     # # Display the frame
-    # cv2.imshow("Locker Access System", frame)
+    cv2.imshow("Locker Access System", frame)
     
     # # Check for exit key
-    # key = cv2.waitKey(1) & 0xFF
-    # if key == 27:  # ESC key
-    #     break
+    key = cv2.waitKey(1) & 0xFF
+    if key == 27:  # ESC key
+         break
 
     # Headless Mode - No Display Output
     time.sleep(1)  # Simulate processing time
