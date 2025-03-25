@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import time
+import os
+os.environ["DISPLAY"] = ":0"
 try:
     import RPi.GPIO as GPIO
 except ImportError:
