@@ -257,18 +257,30 @@ class LockerAccessApp:
             self.status_var.set(f"Error closing locker: {e}")
     
     def update_video(self):
-        # Capture frame from PiCamera
+        # Start timing
+        start_time = time.time()
+        
+        # Capture frame from PiCamera with optimized settings
         frame = picam2.capture_array()
         
-        # Convert to RGB for face recognition
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Resize frame to reduce processing load
+        small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
         
-        # Detect faces
-        face_locations = face_recognition.face_locations(rgb_frame)
-        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+        # Convert to RGB for face recognition
+        rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+        
+        # Detect faces on smaller frame for performance
+        face_locations = face_recognition.face_locations(rgb_small_frame)
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
         
         # Process each detected face
         for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+            # Scale back up face locations since we resized
+            top *= 2
+            right *= 2
+            bottom *= 2
+            left *= 2
+            
             # Compare face with known faces
             matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=THRESHOLD)
             name = "Unknown"
@@ -285,14 +297,18 @@ class LockerAccessApp:
             cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
             cv2.putText(frame, name, (left, top-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
         
-        # Convert frame directly to PhotoImage without additional color conversion
+        # Convert frame directly to PhotoImage
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
         
+        # Calculate and adjust update interval for consistent framerate
+        processing_time = time.time() - start_time
+        delay = max(1, int((1/30 - processing_time) * 1000))  # Aim for ~30 FPS
+        
         # Schedule next update
-        self.master.after(50, self.update_video)
+        self.master.after(delay, self.update_video))
 
 def register_face(name):
     global known_encodings, known_names, lockers
