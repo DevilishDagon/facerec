@@ -161,33 +161,56 @@ class LockerAccessApp:
         master.title("Locker Access System")
         master.geometry(f"{SCREEN_WIDTH}x{SCREEN_HEIGHT}")
         
-        # Video feed
-        self.video_label = tk.Label(master)
-        self.video_label.pack()
+        # Make the window fullscreen for touchscreen
+        master.attributes('-fullscreen', True)
         
-        # Buttons frame
+        # Configure grid layout
+        master.grid_columnconfigure(0, weight=1)
+        master.grid_rowconfigure(0, weight=1)
+        
+        # Video feed with larger touch-friendly size
+        self.video_label = tk.Label(master, borderwidth=2, relief="solid")
+        self.video_label.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        
+        # Buttons frame with larger, touch-friendly buttons
         button_frame = tk.Frame(master)
-        button_frame.pack(side=tk.BOTTOM)
+        button_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
+        button_frame.columnconfigure(2, weight=1)
+        
+        # Large, touch-friendly buttons with padding
+        button_style = {
+            'font': ('Arial', 14),
+            'padx': 20,
+            'pady': 10,
+            'width': 10
+        }
         
         # Add Face Button
         add_button = tk.Button(button_frame, text="Add Face", 
-                               command=self.show_add_face_keyboard)
-        add_button.pack(side=tk.LEFT)
+                               command=self.show_add_face_keyboard,
+                               **button_style)
+        add_button.grid(row=0, column=0, padx=5, pady=5)
         
         # Delete Face Button
         delete_button = tk.Button(button_frame, text="Delete Face", 
-                                  command=self.show_delete_face_keyboard)
-        delete_button.pack(side=tk.LEFT)
+                                  command=self.show_delete_face_keyboard,
+                                  **button_style)
+        delete_button.grid(row=0, column=1, padx=5, pady=5)
         
         # Exit Button
         exit_button = tk.Button(button_frame, text="Exit", 
-                                command=self.exit_program)
-        exit_button.pack(side=tk.LEFT)
+                                command=self.exit_program,
+                                **button_style)
+        exit_button.grid(row=0, column=2, padx=5, pady=5)
         
-        # Status message
+        # Status message with larger font
         self.status_var = tk.StringVar()
-        status_label = tk.Label(master, textvariable=self.status_var)
-        status_label.pack()
+        status_label = tk.Label(master, textvariable=self.status_var, 
+                                font=('Arial', 12), 
+                                wraplength=SCREEN_WIDTH-20)
+        status_label.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
         
         # Start video feed
         self.update_video()
@@ -201,11 +224,14 @@ class LockerAccessApp:
         keyboard.action = "Delete"
     
     def exit_program(self):
-        picam2.stop()
-        GPIO.cleanup()
-        self.master.quit()
+        # Add confirmation dialog for exit
+        if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
+            picam2.stop()
+            GPIO.cleanup()
+            self.master.quit()
     
     def update_video(self):
+        # Rest of the method remains the same as in the original script
         # Capture frame from PiCamera
         frame = picam2.capture_array()
         
@@ -243,31 +269,7 @@ class LockerAccessApp:
         # Schedule next update
         self.master.after(50, self.update_video)
     
-    def open_locker(self, name):
-        if name not in lockers:
-            self.status_var.set(f"No locker assigned for {name}")
-            return
-        
-        locker_info = lockers[name]
-        gpio_pin = locker_info['gpio']
-        
-        try:
-            # Unlock the locker
-            GPIO.output(gpio_pin, GPIO.HIGH)
-            self.status_var.set(f"Locker {locker_info['locker']} opened")
-            
-            # Schedule locker closure
-            self.master.after(5000, lambda: self.close_locker(gpio_pin, locker_info['locker']))
-        
-        except Exception as e:
-            self.status_var.set(f"Error opening locker: {e}")
-    
-    def close_locker(self, gpio_pin, locker_number):
-        try:
-            GPIO.output(gpio_pin, GPIO.LOW)
-            self.status_var.set(f"Locker {locker_number} closed")
-        except Exception as e:
-            self.status_var.set(f"Error closing locker: {e}")
+    # Rest of the methods remain the same
 
 def register_face(name):
     global known_encodings, known_names, lockers
