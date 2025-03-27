@@ -184,9 +184,22 @@ class LockerAccessUI:
         
         # Draw faces and attempt to open lockers
         for name, (top, right, bottom, left) in zip(names, face_locations):
-            # Draw rectangle
-            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-            cv2.putText(frame, name, (left, top-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
+            # Different colors based on recognition status
+            if name == "Unknown":
+                # Red frame for unknown faces
+                rectangle_color = (0, 0, 255)  # Red in BGR
+                text_color = (0, 0, 255)
+            else:
+                # Green frame for recognized faces
+                rectangle_color = (0, 255, 0)  # Green in BGR
+                text_color = (0, 255, 0)
+            
+            # Draw rectangle with chosen color
+            cv2.rectangle(frame, (left, top), (right, bottom), rectangle_color, 2)
+            
+            # Draw name text with chosen color
+            cv2.putText(frame, name, (left, top-10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, text_color, 2)
             
             # Open locker for recognized users
             if name != "Unknown":
