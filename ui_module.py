@@ -177,7 +177,7 @@ class LockerAccessUI:
         start_time = time.time()
         
         # Capture frame
-        frame = self.camera_manager.capture_frame(resize_factor=1)
+        frame = self.camera_manager.capture_frame(resize_factor=0.5)
         
         # Recognize faces
         names, face_locations = self.face_recognizer.recognize_face(frame)
