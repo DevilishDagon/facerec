@@ -18,7 +18,7 @@ class CameraManager:
         self.picam2.start()
         self.picam2.set_controls({"AfMode": controls.AfModeEnum.Continuous})
     
-    def capture_frame(self, resize_factor=1.0):
+    def capture_frame(self, resize_factor=3.0):
         """
         Capture a frame from the camera
         
