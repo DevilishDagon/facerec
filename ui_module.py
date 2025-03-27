@@ -1,9 +1,9 @@
-# ui_module.py
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import time
 import cv2
+import os
 
 class VirtualKeyboard:
     def __init__(self, master, callback):
@@ -15,7 +15,12 @@ class VirtualKeyboard:
         """
         self.window = tk.Toplevel(master)
         self.window.title("Virtual Keyboard")
-        self.window.geometry("600x400")
+        
+        # Ensure full screen for keyboard too
+        screen_width = master.winfo_screenwidth()
+        screen_height = master.winfo_screenheight()
+        self.window.geometry(f"{screen_width}x{screen_height}")
+        self.window.attributes('-fullscreen', True)
         
         self.callback = callback
         self.input_var = tk.StringVar()
@@ -67,7 +72,7 @@ class VirtualKeyboard:
 class LockerAccessUI:
     def __init__(self, master, camera_manager, face_recognizer, locker_manager):
         """
-        Initialize Locker Access UI
+        Initialize Locker Access UI with Raspberry Pi full-screen optimizations
         
         :param master: Root tkinter window
         :param camera_manager: Camera management instance
@@ -79,19 +84,29 @@ class LockerAccessUI:
         self.face_recognizer = face_recognizer
         self.locker_manager = locker_manager
         
-        master.title("Locker Access System")
-        master.attributes('-fullscreen', True)
-        master.geometry("800x480")
+        # Get screen dimensions
+        screen_width = master.winfo_screenwidth()
+        screen_height = master.winfo_screenheight()
         
-        # Video label
+        # Aggressive full-screen settings for Raspberry Pi
+        master.title("Locker Access System")
+        master.attributes('-fullscreen', True)  # Fullscreen mode
+        master.attributes('-topmost', True)     # Keep on top
+        master.state('zoomed')                 # Backup full-screen method
+        master.geometry(f"{screen_width}x{screen_height}+0+0")  # Explicit size and position
+        
+        # Hide mouse cursor (optional, but common for kiosk-style apps)
+        master.config(cursor='none')
+        
+        # Video label (expanded to full screen)
         self.video_label = tk.Label(master)
-        self.video_label.pack(fill=tk.BOTH, expand=True)
+        self.video_label.place(x=0, y=0, width=screen_width, height=screen_height)
         
         # Status message
         self.status_var = tk.StringVar()
         status_label = tk.Label(master, textvariable=self.status_var, 
                                 font=('Arial', 12), 
-                                wraplength=780)
+                                wraplength=screen_width-20)
         status_label.pack(side=tk.BOTTOM)
         
         # Buttons
