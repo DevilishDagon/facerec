@@ -1,9 +1,11 @@
-# ui_module.py
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import time
 import cv2
+import threading
+from datetime import datetime
+
 
 class VirtualKeyboard:
     def __init__(self, master, callback):
@@ -66,39 +68,49 @@ class VirtualKeyboard:
 
 class LockerAccessUI:
     def __init__(self, master, camera_manager, face_recognizer, locker_manager):
-        """
-        Initialize Locker Access UI
-        
-        :param master: Root tkinter window
-        :param camera_manager: Camera management instance
-        :param face_recognizer: Face recognition instance
-        :param locker_manager: Locker management instance
-        """
         self.master = master
         self.camera_manager = camera_manager
         self.face_recognizer = face_recognizer
         self.locker_manager = locker_manager
-        
+
         master.title("Locker Access System")
         master.attributes('-fullscreen', True)
         master.geometry("800x480")
-        
-        # Video label
-        self.video_label = tk.Label(master)
+
+        # UI layout
+        main_frame = tk.Frame(master)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        video_frame = tk.Frame(main_frame)
+        video_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.video_label = tk.Label(video_frame)
         self.video_label.pack(fill=tk.BOTH, expand=True)
-        
-        # Status message
+
+        bottom_frame = tk.Frame(master)
+        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
+
         self.status_var = tk.StringVar()
-        status_label = tk.Label(master, textvariable=self.status_var, 
-                                font=('Arial', 12), 
-                                wraplength=780)
-        status_label.pack(side=tk.BOTTOM)
-        
-        # Buttons
+        status_label = tk.Label(bottom_frame, textvariable=self.status_var,
+                                font=('Arial', 12), wraplength=780)
+        status_label.pack(side=tk.TOP, fill=tk.X)
+
         self.create_buttons()
-        
-        # Start video update
+
+        # Shared data
+        self.recognized_faces = []
+        self.recognition_lock = threading.Lock()
+        self.last_recognition_time = datetime.now()
+        self.running = True
+
+        # Background recognition thread
+        self.recognition_thread = threading.Thread(target=self.run_face_recognition_loop, daemon=True)
+        self.recognition_thread.start()
+
+        # Start UI update loop
         self.update_video()
+
+
     
     def create_buttons(self):
         """Create control buttons"""
@@ -168,53 +180,69 @@ class LockerAccessUI:
     def exit_program(self):
         """Exit the application"""
         if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
+            self.running = False
             self.camera_manager.stop()
             self.locker_manager.cleanup()
             self.master.quit()
+
     
     def update_video(self):
-        """Update video frame"""
-        start_time = time.time()
-        
-        # Capture frame
+        """Main loop to update the video UI"""
         frame = self.camera_manager.capture_frame()
-        
-        # Recognize faces
-        names, face_locations = self.face_recognizer.recognize_face(frame)
-        
-        # Draw faces and attempt to open lockers
-        for name, (top, right, bottom, left) in zip(names, face_locations):
-            # Different colors based on recognition status
-            if name == "Unknown":
-                # Red frame for unknown faces
-                rectangle_color = (0, 0, 255)  # Red in BGR
-                text_color = (0, 0, 255)
-            else:
-                # Green frame for recognized faces
-                rectangle_color = (0, 255, 0)  # Green in BGR
-                text_color = (0, 255, 0)
-            
-            # Draw rectangle with chosen color
-            cv2.rectangle(frame, (left, top), (right, bottom), rectangle_color, 2)
-            
-            # Draw name text with chosen color
-            cv2.putText(frame, name, (left, top-10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, text_color, 2)
-            
-            # Open locker for recognized users
+
+        # Draw rectangles from recognition results
+        with self.recognition_lock:
+            recognized = list(self.recognized_faces)
+
+        for name, (top, right, bottom, left) in recognized:
+            color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+
+            cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
+            cv2.putText(frame, name, (left, top - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+
             if name != "Unknown":
                 success, message = self.locker_manager.open_locker(name)
                 self.status_var.set(message)
-        
-        # Convert to PhotoImage
+
+        # Display frame in the UI
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
-        
-        # Calculate and adjust update interval
-        processing_time = time.time() - start_time
-        delay = max(1, int((1/30 - processing_time) * 1000))
-        
-        # Schedule next update
-        self.master.after(delay, self.update_video)
+
+        # Schedule next update (~30 FPS)
+        self.master.after(33, self.update_video)
+
+
+    def run_face_recognition_loop(self):
+        """Background thread to perform face recognition periodically"""
+        while self.running:
+            # Capture a low-res frame
+            frame = self.camera_manager.capture_frame(resize_factor=0.25)
+            rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+            # Recognize faces
+            face_locations = self.face_recognizer.face_recognition.face_locations(rgb_small)
+            face_encodings = self.face_recognizer.face_recognition.face_encodings(rgb_small, face_locations)
+    
+            recognized = []
+            for encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
+                name = self.face_recognizer.match_face(encoding)  # You must define this
+                # Scale coordinates back to full size
+                recognized.append((
+                    name,
+                    (top * 4, right * 4, bottom * 4, left * 4)
+                ))
+    
+            # Update shared data safely
+            with self.recognition_lock:
+                self.recognized_faces = recognized
+                self.last_recognition_time = datetime.now()
+    
+            # Sleep before next recognition cycle
+            time.sleep(1.5)
+
+
+
+
