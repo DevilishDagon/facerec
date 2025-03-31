@@ -6,6 +6,7 @@ import cv2
 import threading
 from datetime import datetime
 
+print("🧠 UI Module - Running version from March 31, 2025")
 
 class VirtualKeyboard:
     def __init__(self, master, callback):
