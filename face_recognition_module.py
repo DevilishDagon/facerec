@@ -16,6 +16,23 @@ class FaceRecognitionManager:
         self.known_encodings = []
         self.known_names = []
         self.load_encodings(encodings_file)
+
+    def match_face(self, face_encoding):
+        """
+        Compare a single encoding to known encodings and return the matching name, or 'Unknown'.
+    
+        :param face_encoding: Encoding of the detected face
+        :return: Matching name or 'Unknown'
+        """
+        matches = face_recognition.compare_faces(self.known_encodings, face_encoding, tolerance=THRESHOLD)
+        name = "Unknown"
+    
+        if True in matches:
+            first_match_index = matches.index(True)
+            name = self.known_names[first_match_index]
+    
+        return name
+
     
     def load_encodings(self, encodings_file):
         """
