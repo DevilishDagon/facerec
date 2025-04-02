@@ -4,6 +4,7 @@ from PIL import Image, ImageTk
 import time
 import cv2
 import threading
+import face_recognition_module
 from datetime import datetime
 
 print("🧠 UI Module - Running version from March 31, 2025")
