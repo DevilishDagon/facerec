@@ -8,6 +8,8 @@ from ui_module import LockerAccessUI
 def main():
     # Initialize root window
     root = tk.Tk()
+    root.configure(bg="red")  # Make it obvious
+    root.title("Face Locker System")
 
     # Predefine variables to avoid UnboundLocalError
     camera_manager = None
