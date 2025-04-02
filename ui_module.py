@@ -149,8 +149,9 @@ class LockerAccessUI:
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         # Detect faces
-        face_locations = self.face_recognizer.face_recognition.face_locations(rgb_frame)
-        face_encodings = self.face_recognizer.face_recognition.face_encodings(rgb_frame, face_locations)
+        face_locations = self.face_recognizer.face_locations(rgb_frame)
+        face_encodings = self.face_recognizer.face_encodings(rgb_frame, face_locations)
+
         
         if not face_locations:
             messagebox.showerror("Error", "No face detected. Try again.")
@@ -223,8 +224,9 @@ class LockerAccessUI:
             frame = self.camera_manager.capture_frame(resize_factor=0.25)
             rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
-            face_locations = self.face_recognizer.face_recognition.face_locations(rgb_small)
-            face_encodings = self.face_recognizer.face_recognition.face_encodings(rgb_small, face_locations)
+            face_locations = self.face_recognizer.face_locations(rgb_small)
+            face_encodings = self.face_recognizer.face_encodings(rgb_small, face_locations)
+
     
             recognized = []
     
