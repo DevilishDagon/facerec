@@ -193,9 +193,13 @@ class LockerAccessUI:
 
     
     def update_video(self):
-        """Main loop to update the video UI"""
         frame = self.camera_manager.capture_frame()
 
+        if frame is None:
+            self.status_var.set("⚠️ Camera unavailable.")
+            self.master.after(1000, self.update_video)  # Try again in 1s
+            return
+    
         frame = cv2.flip(frame, 1)
 
         # Draw rectangles from recognition results
