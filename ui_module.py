@@ -221,6 +221,7 @@ class LockerAccessUI:
     def run_face_recognition_loop(self):
         """Background thread to perform face recognition periodically"""
         while self.running:
+            print(f"[DEBUG] Recognized: {recognized}")
             # Capture a low-res frame
             frame = self.camera_manager.capture_frame(resize_factor=0.25)
             rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
