@@ -219,33 +219,21 @@ class LockerAccessUI:
 
 
     def run_face_recognition_loop(self):
-        """Background thread to perform face recognition periodically"""
         while self.running:
-            print(f"[DEBUG] Recognized: {recognized}")
-            # Capture a low-res frame
             frame = self.camera_manager.capture_frame(resize_factor=0.25)
             rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
-            # Recognize faces
             face_locations = self.face_recognizer.face_recognition.face_locations(rgb_small)
             face_encodings = self.face_recognizer.face_recognition.face_encodings(rgb_small, face_locations)
     
             recognized = []
-            for encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
-                name = self.face_recognizer.match_face(encoding)  # You must define this
-                # Scale coordinates back to full size
-                recognized.append((
-                    name,
-                    (top * 4, right * 4, bottom * 4, left * 4)
-                ))
     
-            # Update shared data safely
-            with self.recognition_lock:
-                self.recognized_faces = recognized
-                self.last_recognition_time = datetime.now()
+            if face_encodings:
+                for encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
+                    name = self.face_recognizer.match_face(encoding)
+                    recognized.append((name, (top * 4, right * 4, bottom * 4, left * 4)))
     
-            # Sleep before next recognition cycle
-            time.sleep(1.5)
+            print(f"[DEBUG] Recognized: {recognized}")
 
 
 
