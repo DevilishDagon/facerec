@@ -14,10 +14,10 @@ class CameraManager:
                 self.picam2 = Picamera2()
                 time.sleep(1)  # Let system settle
 
-                config = self.picam2.create_preview_configuration(main={"size": (1280, 720)})
+                config = self.picam2.create_preview_configuration(main={"size": (640, 480)})
                 self.picam2.configure(config)
                 self.picam2.start(show_preview=False)
-                self.picam2.set_controls({"AfMode": controls.AfModeEnum.Continuous})
+
 
                 print("[CameraManager] Camera initialized successfully.")
                 break
