@@ -6,13 +6,11 @@ import time
 
 class CameraManager:
     def __init__(self, width=800, height=480):
-        """
-        Initialize the camera with specified resolution
-        
-        :param width: Camera frame width
-        :param height: Camera frame height
-        """
         self.picam2 = Picamera2()
+
+        # Wait for system to settle
+        time.sleep(3)
+
         config = self.picam2.create_preview_configuration(main={"size": (width, height)})
         self.picam2.configure(config)
         self.picam2.start()
