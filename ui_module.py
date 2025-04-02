@@ -191,7 +191,7 @@ class LockerAccessUI:
         """Main loop to update the video UI"""
         frame = self.camera_manager.capture_frame()
 
-        frame = cv2.flip(frame, 1)
+        frame = cv2.flip(frame, 0)
 
         # Draw rectangles from recognition results
         with self.recognition_lock:
