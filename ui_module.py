@@ -195,48 +195,53 @@ class LockerAccessUI:
 
     
     def update_video(self):
-        if not self.camera_manager:
-            self.status_var.set("⚠️ Camera unavailable.")
-            self.master.after(1000, self.update_video)
+        # Check if camera is initialized
+        if not self.camera_manager or not self.camera_manager.picam2:
+            self.status_var.set("❌ Camera not available.")
+            self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
+            self.master.after(1000, self.update_video)  # Retry in 1s
             return
+    
+        # Try to capture a frame
         frame = self.camera_manager.capture_frame()
         if frame is None:
-            print("[DEBUG] No frame captured!")
-            return
-
-        if frame is None:
-            self.status_var.set("⚠️ Camera unavailable.")
-            self.master.after(1000, self.update_video)  # Try again in 1s
+            self.status_var.set("⚠️ Failed to capture frame.")
+            self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
+            self.master.after(1000, self.update_video)
             return
     
         frame = cv2.flip(frame, 1)
-
+    
         # Draw rectangles from recognition results
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
-
+    
         for name, (top, right, bottom, left) in recognized:
             color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-
             cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
             cv2.putText(frame, name, (left, top - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-
+    
             if name != "Unknown":
                 success, message = self.locker_manager.open_locker(name)
                 self.status_var.set(message)
-
-        # Display frame in the UI
+    
+        # Convert frame and show in label
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
-
+    
         # Schedule next update (~30 FPS)
         self.master.after(33, self.update_video)
 
 
+
     def run_face_recognition_loop(self):
+        if not self.camera_manager or not self.camera_manager.picam2:
+            print("[UI] Camera manager not initialized. Skipping recognition loop.")
+            return
+
         while self.running:
             frame = self.camera_manager.capture_frame(resize_factor=0.25)
             rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
