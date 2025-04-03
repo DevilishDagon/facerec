@@ -84,22 +84,25 @@ class LockerAccessUI:
         # UI layout
         main_frame = tk.Frame(master)
         main_frame.pack(fill=tk.BOTH, expand=True)
-
+        
+        # Top - camera feed
         video_frame = tk.Frame(main_frame)
-        video_frame.pack(fill=tk.BOTH, expand=True)
-
+        video_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        
         self.video_label = tk.Label(video_frame)
         self.video_label.pack(fill=tk.BOTH, expand=True)
-
-        bottom_frame = tk.Frame(master)
-        bottom_frame.pack(side=tk.BOTTOM, fill=tk.X)
-
+        
+        # Bottom - status and buttons
+        control_frame = tk.Frame(main_frame, bg="black")
+        control_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
         self.status_var = tk.StringVar()
-        status_label = tk.Label(bottom_frame, textvariable=self.status_var,
-                                font=('Arial', 12), wraplength=780)
+        status_label = tk.Label(control_frame, textvariable=self.status_var,
+                                font=('Arial', 12), bg="black", fg="white", wraplength=780)
         status_label.pack(side=tk.TOP, fill=tk.X)
+        
+        self.create_buttons(control_frame)
 
-        self.create_buttons()
 
         # Shared data
         self.recognized_faces = []
@@ -116,19 +119,18 @@ class LockerAccessUI:
 
 
     
-    def create_buttons(self):
-        """Create control buttons"""
-        button_frame = tk.Frame(self.master)
+    def create_buttons(self, parent):
+        button_frame = tk.Frame(parent, bg="black")
         button_frame.pack(side=tk.BOTTOM, fill=tk.X)
-        
+    
         buttons = [
             ("Add Face", self.show_add_face_keyboard),
             ("Delete Face", self.show_delete_face_keyboard),
             ("Exit", self.exit_program)
         ]
-        
+    
         for text, command in buttons:
-            btn = tk.Button(button_frame, text=text, command=command)
+            btn = tk.Button(button_frame, text=text, command=command, font=('Arial', 12))
             btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
     
     def show_add_face_keyboard(self):
