@@ -186,62 +186,61 @@ class LockerAccessUI:
             self.master.quit()
 
     
-    def update_video(self):
-        if not self.camera_manager or not self.camera_manager.picam2:
-            self.status_var.set("❌ Camera not available.")
-            self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
-            self.master.after(1000, self.update_video)
-            return
-    
-        frame = self.camera_manager.capture_frame()
-        if frame is None:
-            self.status_var.set("⚠️ Failed to capture frame.")
-            self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
-            self.master.after(1000, self.update_video)
-            return
-    
-        # Flip before recognition so coordinates match
-        frame = cv2.flip(frame, 1)
-    
-        # Get dimensions for flipping
-        frame_width = frame.shape[1]
-    
-        # Flip recognition coordinates to match flipped image
-        with self.recognition_lock:
-            recognized = list(self.recognized_faces)
-    
-        for name, (top, right, bottom, left) in recognized:
-            # Flip horizontal positions
-            flipped_left = frame_width - right
-            flipped_right = frame_width - left
-    
-            color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-            cv2.rectangle(frame, (flipped_left, top), (flipped_right, bottom), color, 2)
-            cv2.putText(frame, name, (flipped_left, top - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-    
-            if name != "Unknown":
-                success, message = self.locker_manager.open_locker(name)
-                self.status_var.set(message)
-    
-        # Resize frame to match the label size exactly
-        label_width = self.video_label.winfo_width()
-        label_height = self.video_label.winfo_height()
+        def update_video(self):
+            if not self.camera_manager or not self.camera_manager.picam2:
+                self.status_var.set("❌ Camera not available.")
+                self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
+                self.master.after(1000, self.update_video)
+                return
         
-        frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+            frame = self.camera_manager.capture_frame()
+            if frame is None:
+                self.status_var.set("⚠️ Failed to capture frame.")
+                self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
+                self.master.after(1000, self.update_video)
+                return
+        
+            # Flip before recognition so coordinates match
+            frame = cv2.flip(frame, 1)
+        
+            # Get dimensions for flipping
+            frame_width = frame.shape[1]
+        
+            # Flip recognition coordinates to match flipped image
+            with self.recognition_lock:
+                recognized = list(self.recognized_faces)
+        
+            for name, (top, right, bottom, left) in recognized:
+                # Flip horizontal positions
+                flipped_left = frame_width - right
+                flipped_right = frame_width - left
+        
+                color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+                cv2.rectangle(frame, (flipped_left, top), (flipped_right, bottom), color, 2)
+                cv2.putText(frame, name, (flipped_left, top - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+        
+                if name != "Unknown":
+                    success, message = self.locker_manager.open_locker(name)
+                    self.status_var.set(message)
+        
+            # Resize frame to match the label size exactly
+            label_width = self.video_label.winfo_width()
+            label_height = self.video_label.winfo_height()
     
-        if label_width > 0 and label_height > 0:
-            # Ensure the frame completely fills the label area (no black bars)
-            frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
-    
-        # Convert frame and show in label
-        img = Image.fromarray(frame)
-        imgtk = ImageTk.PhotoImage(image=img)
-        self.video_label.imgtk = imgtk
-        self.video_label.configure(image=imgtk)
-    
-        # Schedule next update (~30 FPS)
-        self.master.after(33, self.update_video)
+            if label_width > 0 and label_height > 0:
+                # Ensure the frame completely fills the label area (no black bars)
+                frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+        
+            # Convert frame and show in label
+            img = Image.fromarray(frame)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.configure(image=imgtk)
+        
+            # Schedule next update (~30 FPS)
+            self.master.after(33, self.update_video)
+
 
     def run_face_recognition_loop(self):
         if not self.camera_manager or not self.camera_manager.picam2:
