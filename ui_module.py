@@ -192,8 +192,8 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)
             return
     
-        # Try to capture a frame
         try:
+            # Try to capture a frame
             frame = self.camera_manager.capture_frame()
             if frame is None:
                 self.status_var.set("⚠️ Failed to capture frame.")
@@ -205,14 +205,14 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)
             return
         
-        # Flip before recognition so coordinates match
+        # Flip the frame to match the recognition coordinates
         frame = cv2.flip(frame, 1)
         
         # Get dimensions for flipping
         frame_width = frame.shape[1]
         frame_height = frame.shape[0]
     
-        # Flip recognition coordinates to match flipped image
+        # Flip recognition coordinates to match the flipped image
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
     
@@ -235,36 +235,46 @@ class LockerAccessUI:
         label_height = self.video_label.winfo_height()
     
         if label_width > 0 and label_height > 0:
-            # Maintain the aspect ratio while resizing, scale frame to fit completely
+            # Maintain aspect ratio and resize frame to fit the label
             aspect_ratio = frame_width / frame_height
             label_aspect_ratio = label_width / label_height
     
             if aspect_ratio > label_aspect_ratio:
-                # Wider than label, fill width and adjust height
+                # Image is wider than label, scale to width and adjust height
                 new_width = label_width
                 new_height = int(label_width / aspect_ratio)
             else:
-                # Taller than label, fill height and adjust width
+                # Image is taller than label, scale to height and adjust width
                 new_height = label_height
                 new_width = int(label_height * aspect_ratio)
     
-            # Resize frame to fit the label
-            frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+            # Resize the frame to fit the label's dimensions
+            try:
+                frame_resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+            except cv2.error as e:
+                self.status_var.set(f"⚠️ Resize error: {str(e)}")
+                self.master.after(1000, self.update_video)
+                return
     
-            # Center the image in the label area
+            # Add padding to center the frame in the label
             top_left_x = (label_width - new_width) // 2
             top_left_y = (label_height - new_height) // 2
     
-            # Place the frame in the center of the label
-            frame_with_padding = cv2.copyMakeBorder(frame, top_left_y, label_height - new_height - top_left_y, top_left_x, label_width - new_width - top_left_x, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+            # Pad the frame with black bars if necessary
+            frame_with_padding = cv2.copyMakeBorder(
+                frame_resized, 
+                top_left_y, label_height - new_height - top_left_y, 
+                top_left_x, label_width - new_width - top_left_x, 
+                cv2.BORDER_CONSTANT, value=(0, 0, 0)
+            )
     
-            # Convert frame and show in label
+            # Convert the frame to a Tkinter-compatible image and display it
             img = Image.fromarray(frame_with_padding)
             imgtk = ImageTk.PhotoImage(image=img)
             self.video_label.imgtk = imgtk
             self.video_label.configure(image=imgtk)
     
-        # Schedule next update (~30 FPS)
+        # Schedule the next update (~30 FPS)
         self.master.after(33, self.update_video)
 
 
