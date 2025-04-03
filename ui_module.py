@@ -195,6 +195,10 @@ class LockerAccessUI:
 
     
     def update_video(self):
+        if not self.camera_manager:
+            self.status_var.set("⚠️ Camera unavailable.")
+            self.master.after(1000, self.update_video)
+            return
         frame = self.camera_manager.capture_frame()
         if frame is None:
             print("[DEBUG] No frame captured!")
