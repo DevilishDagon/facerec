@@ -200,34 +200,57 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)
             return
     
+        # Flip before recognition so coordinates match
         frame = cv2.flip(frame, 1)
     
+        # Update label size
+        self.video_label.update_idletasks()
+        label_width = self.video_label.winfo_width()
+        label_height = self.video_label.winfo_height()
+    
+        # Calculate crop size to match aspect ratio
+        cam_h, cam_w, _ = frame.shape
+        target_aspect = label_width / label_height
+        cam_aspect = cam_w / cam_h
+    
+        if cam_aspect > target_aspect:
+            # Too wide — crop left/right
+            new_width = int(cam_h * target_aspect)
+            x_offset = (cam_w - new_width) // 2
+            frame = frame[:, x_offset:x_offset + new_width]
+        else:
+            # Too tall — crop top/bottom
+            new_height = int(cam_w / target_aspect)
+            y_offset = (cam_h - new_height) // 2
+            frame = frame[y_offset:y_offset + new_height, :]
+    
+        # Resize to fill label exactly
+        frame = cv2.resize(frame, (label_width, label_height))
+    
+        # Draw rectangles from recognition results
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
     
         for name, (top, right, bottom, left) in recognized:
             color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
     
-            # Optional: Translucent label background
-            overlay = frame.copy()
-            cv2.rectangle(overlay, (left, top - 30), (right, top), color, -1)
-            alpha = 0.4
-            frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
+            # Adjust for frame scaling (since we crop/resize)
+            x_scale = label_width / cam_w
+            y_scale = label_height / cam_h
+    
+            # Coordinates were multiplied by 4 in recognition thread, so we apply scale again
+            top = int(top * y_scale)
+            right = int(right * x_scale)
+            bottom = int(bottom * y_scale)
+            left = int(left * x_scale)
     
             cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
-            cv2.putText(frame, name, (left, top - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(frame, name, (left, max(top - 10, 10)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
     
             if name != "Unknown":
                 success, message = self.locker_manager.open_locker(name)
                 self.status_var.set(message)
-    
-        # Make sure label size is ready
-        self.video_label.update_idletasks()
-        label_width = self.video_label.winfo_width()
-        label_height = self.video_label.winfo_height()
-    
-        frame = cv2.resize(frame, (label_width, label_height))
     
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
