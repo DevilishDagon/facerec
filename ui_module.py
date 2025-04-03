@@ -71,7 +71,7 @@ class VirtualKeyboard:
         self.window.destroy()
 
 class LockerAccessUI:
-    def __init__(self, master, camera_manager, face_recognizer, locker_manager):
+   def __init__(self, master, camera_manager, face_recognizer, locker_manager):
         self.master = master
         self.camera_manager = camera_manager
         self.face_recognizer = face_recognizer
@@ -80,41 +80,32 @@ class LockerAccessUI:
         master.title("Locker Access System")
         master.attributes('-fullscreen', True)
         master.geometry("800x480")
+        master.configure(bg="black")
 
-        # UI layout
-        main_frame = tk.Frame(master)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Top - camera feed
-        video_frame = tk.Frame(main_frame)
-        video_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        
-        self.video_label = tk.Label(video_frame)
-        self.video_label.pack(fill=tk.BOTH, expand=True)
-        
-        # Bottom - status and buttons
-        control_frame = tk.Frame(main_frame, bg="black")
-        control_frame.pack(side=tk.BOTTOM, fill=tk.X)
-        
+        # Top: Video Frame
+        self.video_label = tk.Label(master, bg="black")
+        self.video_label.place(x=0, y=0, width=800, height=360)  # Top 75%
+
+        # Bottom: Control Frame
+        control_frame = tk.Frame(master, bg="black")
+        control_frame.place(x=0, y=360, width=800, height=120)  # Bottom 25%
+
         self.status_var = tk.StringVar()
         status_label = tk.Label(control_frame, textvariable=self.status_var,
-                                font=('Arial', 12), bg="black", fg="white", wraplength=780)
+                                font=('Arial', 14), bg="black", fg="white")
         status_label.pack(side=tk.TOP, fill=tk.X)
-        
+
         self.create_buttons(control_frame)
 
-
-        # Shared data
+        # Rest of your setup...
         self.recognized_faces = []
         self.recognition_lock = threading.Lock()
         self.last_recognition_time = datetime.now()
         self.running = True
 
-        # Background recognition thread
         self.recognition_thread = threading.Thread(target=self.run_face_recognition_loop, daemon=True)
         self.recognition_thread.start()
 
-        # Start UI update loop
         self.update_video()
 
 
