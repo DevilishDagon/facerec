@@ -1,4 +1,3 @@
-# main.py
 import tkinter as tk
 from camera_module import CameraManager
 from face_recognition_module import FaceRecognitionManager
@@ -18,25 +17,17 @@ def main():
 
     try:
         print("🧠 UI Module - Running version from March 31, 2025")
+    
+        camera_manager = CameraManager()
+        print("[main.py] Camera initialized successfully.")
 
-        # Try initializing camera
-        try:
-            camera_manager = CameraManager()
-        except Exception as cam_error:
-            print(f"⚠️ Failed to initialize camera: {cam_error}")
-            camera_manager = None  # Fallback
-
+        if not camera_manager.picam2:
+            raise RuntimeError("Camera failed to initialize.")
+    
         face_recognizer = FaceRecognitionManager()
         locker_manager = LockerManager()
-
-        # Create UI even if camera is None
-        app = LockerAccessUI(
-            root,
-            camera_manager,
-            face_recognizer,
-            locker_manager
-        )
-
+    
+        app = LockerAccessUI(root, camera_manager, face_recognizer, locker_manager)
         root.mainloop()
 
     except Exception as e:
