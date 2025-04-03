@@ -15,6 +15,12 @@ def main():
         root.configure(bg="black")
         root.title("Face Locker System")
         root.attributes('-fullscreen', True)
+        root.lift()                     # Bring window to front
+        root.attributes('-topmost', True)  # Force it to stay on top
+        root.after_idle(root.attributes, '-topmost', False)  # Let others be on top later
+        root.configure(bg="black")
+        root.title("Face Locker System")
+        root.attributes('-fullscreen', True)
 
         camera_manager = CameraManager()
         if not camera_manager.picam2:
