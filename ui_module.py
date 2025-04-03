@@ -109,7 +109,6 @@ class LockerAccessUI:
         self.update_video()
 
 
-    
     def create_buttons(self, parent):
         button_frame = tk.Frame(parent, bg="black")
         button_frame.pack(side=tk.BOTTOM, fill=tk.X)
