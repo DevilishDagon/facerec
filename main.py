@@ -8,22 +8,28 @@ from ui_module import LockerAccessUI
 def main():
     # Initialize root window
     root = tk.Tk()
-    root.configure(bg="red")  # Make it obvious
+    root.configure(bg="black")
     root.title("Face Locker System")
+    root.attributes('-fullscreen', True)
 
-    # Predefine variables to avoid UnboundLocalError
+    # Predefine modules
     camera_manager = None
     locker_manager = None
 
     try:
         print("🧠 UI Module - Running version from March 31, 2025")
 
-        # Initialize modules
-        camera_manager = CameraManager()
+        # Try initializing camera
+        try:
+            camera_manager = CameraManager()
+        except Exception as cam_error:
+            print(f"⚠️ Failed to initialize camera: {cam_error}")
+            camera_manager = None  # Fallback
+
         face_recognizer = FaceRecognitionManager()
         locker_manager = LockerManager()
 
-        # Create UI
+        # Create UI even if camera is None
         app = LockerAccessUI(
             root,
             camera_manager,
@@ -31,14 +37,12 @@ def main():
             locker_manager
         )
 
-        # Start main loop
         root.mainloop()
 
     except Exception as e:
         print(f"An error occurred: {e}")
 
     finally:
-        # Cleanup resources safely
         if camera_manager:
             camera_manager.stop()
         if locker_manager:
