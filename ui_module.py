@@ -246,8 +246,9 @@ class LockerAccessUI:
             frame = self.camera_manager.capture_frame(resize_factor=0.25)
             rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
-            face_locations = face_recognition.face_locations(rgb_frame)
-            face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+            face_locations = face_recognition.face_locations(rgb_small)
+            face_encodings = face_recognition.face_encodings(rgb_small, face_locations)
+
 
 
     
