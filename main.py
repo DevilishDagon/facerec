@@ -14,7 +14,7 @@ def main():
         root = tk.Tk()
         root.configure(bg="black")
         root.title("Face Locker System")
-        root.attributes('-fullscreen', True)
+        root.geometry("800x480+100+100")  # Normal window placed at (100,100)
         root.lift()                     # Bring window to front
         root.attributes('-topmost', True)  # Force it to stay on top
         root.after_idle(root.attributes, '-topmost', False)  # Let others be on top later
