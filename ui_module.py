@@ -192,33 +192,20 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)
             return
     
-        try:
-            # Try to capture a frame
-            frame = self.camera_manager.capture_frame()
-            if frame is None:
-                self.status_var.set("⚠️ Failed to capture frame.")
-                self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
-                self.master.after(1000, self.update_video)
-                return
-        except Exception as e:
-            self.status_var.set(f"⚠️ Error: {str(e)}")
+        frame = self.camera_manager.capture_frame()
+        if frame is None:
+            self.status_var.set("⚠️ Failed to capture frame.")
+            self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
             self.master.after(1000, self.update_video)
             return
-        
-        # Flip the frame to match the recognition coordinates
+    
+        # Flip before recognition so coordinates match
         frame = cv2.flip(frame, 1)
-        
+    
         # Get dimensions for flipping
         frame_width = frame.shape[1]
-        frame_height = frame.shape[0]
     
-        # Ensure the frame dimensions are valid
-        if frame_width <= 0 or frame_height <= 0:
-            self.status_var.set("⚠️ Invalid frame dimensions.")
-            self.master.after(1000, self.update_video)
-            return
-    
-        # Flip recognition coordinates to match the flipped image
+        # Flip recognition coordinates to match flipped image
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
     
@@ -236,51 +223,21 @@ class LockerAccessUI:
                 success, message = self.locker_manager.open_locker(name)
                 self.status_var.set(message)
     
-        # Get the dimensions of the video label
+        # Resize frame to match the label size exactly
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
-    
+
         if label_width > 0 and label_height > 0:
-            # Maintain aspect ratio and resize frame to fit the label
-            aspect_ratio = frame_width / frame_height
-            label_aspect_ratio = label_width / label_height
+            # Ensure the frame completely fills the label area (no black bars)
+            frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
     
-            if aspect_ratio > label_aspect_ratio:
-                # Image is wider than label, scale to width and adjust height
-                new_width = label_width
-                new_height = int(label_width / aspect_ratio)
-            else:
-                # Image is taller than label, scale to height and adjust width
-                new_height = label_height
-                new_width = int(label_height * aspect_ratio)
+        # Convert frame and show in label
+        img = Image.fromarray(frame)
+        imgtk = ImageTk.PhotoImage(image=img)
+        self.video_label.imgtk = imgtk
+        self.video_label.configure(image=imgtk)
     
-            # Resize the frame to fit the label's dimensions
-            try:
-                frame_resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-            except cv2.error as e:
-                self.status_var.set(f"⚠️ Resize error: {str(e)}")
-                self.master.after(1000, self.update_video)
-                return
-    
-            # Add padding to center the frame in the label
-            top_left_x = (label_width - new_width) // 2
-            top_left_y = (label_height - new_height) // 2
-    
-            # Pad the frame with black bars if necessary
-            frame_with_padding = cv2.copyMakeBorder(
-                frame_resized, 
-                top_left_y, label_height - new_height - top_left_y, 
-                top_left_x, label_width - new_width - top_left_x, 
-                cv2.BORDER_CONSTANT, value=(0, 0, 0)
-            )
-    
-            # Convert the frame to a Tkinter-compatible image and display it
-            img = Image.fromarray(frame_with_padding)
-            imgtk = ImageTk.PhotoImage(image=img)
-            self.video_label.imgtk = imgtk
-            self.video_label.configure(image=imgtk)
-    
-        # Schedule the next update (~30 FPS)
+        # Schedule next update (~30 FPS)
         self.master.after(33, self.update_video)
 
 
