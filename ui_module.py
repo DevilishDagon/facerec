@@ -212,6 +212,12 @@ class LockerAccessUI:
         frame_width = frame.shape[1]
         frame_height = frame.shape[0]
     
+        # Ensure the frame dimensions are valid
+        if frame_width <= 0 or frame_height <= 0:
+            self.status_var.set("⚠️ Invalid frame dimensions.")
+            self.master.after(1000, self.update_video)
+            return
+    
         # Flip recognition coordinates to match the flipped image
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
@@ -276,6 +282,7 @@ class LockerAccessUI:
     
         # Schedule the next update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
     def run_face_recognition_loop(self):
