@@ -71,7 +71,7 @@ class VirtualKeyboard:
         self.window.destroy()
 
 class LockerAccessUI:
-   def __init__(self, master, camera_manager, face_recognizer, locker_manager):
+    def __init__(self, master, camera_manager, face_recognizer, locker_manager):
         self.master = master
         self.camera_manager = camera_manager
         self.face_recognizer = face_recognizer
