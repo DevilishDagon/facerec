@@ -227,6 +227,8 @@ class LockerAccessUI:
         # Resize frame to match the label size exactly
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
+        
+        frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
     
         if label_width > 0 and label_height > 0:
             # Ensure the frame completely fills the label area (no black bars)
