@@ -22,6 +22,9 @@ class VirtualKeyboard:
         self.window = tk.Toplevel(master)
         self.window.title("Virtual Keyboard")
         self.window.geometry("600x400")
+        self.video_label = tk.Label(master, bg="black")
+        self.video_label.pack(fill=tk.BOTH, expand=True)
+
         
         self.callback = callback
         self.input_var = tk.StringVar()
@@ -184,14 +187,12 @@ class LockerAccessUI:
 
     
     def update_video(self):
-        # Check if camera is initialized
         if not self.camera_manager or not self.camera_manager.picam2:
             self.status_var.set("❌ Camera not available.")
             self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
-            self.master.after(1000, self.update_video)  # Retry in 1s
+            self.master.after(1000, self.update_video)
             return
     
-        # Try to capture a frame
         frame = self.camera_manager.capture_frame()
         if frame is None:
             self.status_var.set("⚠️ Failed to capture frame.")
@@ -201,27 +202,38 @@ class LockerAccessUI:
     
         frame = cv2.flip(frame, 1)
     
-        # Draw rectangles from recognition results
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
     
         for name, (top, right, bottom, left) in recognized:
             color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+    
+            # Optional: Translucent label background
+            overlay = frame.copy()
+            cv2.rectangle(overlay, (left, top - 30), (right, top), color, -1)
+            alpha = 0.4
+            frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
+    
             cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
             cv2.putText(frame, name, (left, top - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     
             if name != "Unknown":
                 success, message = self.locker_manager.open_locker(name)
                 self.status_var.set(message)
     
-        # Convert frame and show in label
+        # Make sure label size is ready
+        self.video_label.update_idletasks()
+        label_width = self.video_label.winfo_width()
+        label_height = self.video_label.winfo_height()
+    
+        frame = cv2.resize(frame, (label_width, label_height))
+    
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
     
-        # Schedule next update (~30 FPS)
         self.master.after(33, self.update_video)
 
 
@@ -237,17 +249,16 @@ class LockerAccessUI:
     
             face_locations = face_recognition.face_locations(rgb_small)
             face_encodings = face_recognition.face_encodings(rgb_small, face_locations)
-
-
-
-    
+            
             recognized = []
     
             if face_encodings:
                 for encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
                     name = self.face_recognizer.match_face(encoding)
                     recognized.append((name, (top * 4, right * 4, bottom * 4, left * 4)))
-    
+            with self.recognition_lock:
+                self.recognized_faces = recognized
+
             print(f"[DEBUG] Recognized: {recognized}")
 
 
