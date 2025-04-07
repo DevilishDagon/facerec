@@ -191,7 +191,7 @@ class LockerAccessUI:
             self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
             self.master.after(1000, self.update_video)
             return
-    
+        
         frame = self.camera_manager.capture_frame()
         if frame is None:
             self.status_var.set("⚠️ Failed to capture frame.")
@@ -204,6 +204,7 @@ class LockerAccessUI:
     
         # Get dimensions for flipping
         frame_width = frame.shape[1]
+        frame_height = frame.shape[0]
     
         # Flip recognition coordinates to match flipped image
         with self.recognition_lock:
@@ -223,22 +224,32 @@ class LockerAccessUI:
                 success, message = self.locker_manager.open_locker(name)
                 self.status_var.set(message)
     
-        # Resize frame to match the label size exactly
+        # Resize frame to match the label size exactly without distortion
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
-
-        if label_width > 0 and label_height > 0:
-            # Ensure the frame completely fills the label area (no black bars)
-            frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
     
+        if label_width > 0 and label_height > 0:
+            # Resize while maintaining the aspect ratio of the camera feed
+            aspect_ratio = frame_width / frame_height
+            new_width = label_width
+            new_height = int(label_width / aspect_ratio)
+    
+            if new_height > label_height:
+                new_height = label_height
+                new_width = int(label_height * aspect_ratio)
+    
+            # Resize frame to fill the label without distortion
+            frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+        
         # Convert frame and show in label
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
-    
+        
         # Schedule next update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
 
