@@ -85,7 +85,7 @@ class LockerAccessUI:
         master.geometry("800x480")
         master.configure(bg="black")
 
-        # Top: Video Frame - Ensuring it fills the entire top space
+        # Top: Video Frame
         self.video_label = tk.Label(master, bg="black")
         self.video_label.place(x=0, y=0, width=master.winfo_width(), height=master.winfo_height() - 120)  # Top 75%
 
@@ -221,7 +221,12 @@ class LockerAccessUI:
             new_width = label_width
             new_height = int(label_width / aspect_ratio)
 
-        frame_resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+        try:
+            frame_resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+        except Exception as e:
+            self.status_var.set(f"⚠️ Error resizing frame: {e}")
+            self.master.after(1000, self.update_video)  # Retry in 1s
+            return
 
         # Center the image on the label
         x_offset = (label_width - new_width) // 2
