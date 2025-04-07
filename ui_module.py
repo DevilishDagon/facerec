@@ -208,22 +208,30 @@ class LockerAccessUI:
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
     
+        # Ensure the label has valid dimensions
+        if label_width <= 0 or label_height <= 0:
+            self.status_var.set("⚠️ Label dimensions are invalid.")
+            self.master.after(1000, self.update_video)  # Retry in 1s
+            return
+    
         # If the label dimensions are valid, scale the frame to fill the label
-        if label_width > 0 and label_height > 0:
-            # Calculate scale factor for both dimensions
-            scale_width = label_width / frame_width
-            scale_height = label_height / frame_height
+        scale_width = label_width / frame_width
+        scale_height = label_height / frame_height
+        scale_factor = min(scale_width, scale_height)
     
-            # Choose the smaller scale to avoid distortion and maintain aspect ratio
-            scale_factor = min(scale_width, scale_height)
+        # Resize frame to fill the label while maintaining aspect ratio
+        frame_resized = cv2.resize(frame, (int(frame_width * scale_factor), int(frame_height * scale_factor)))
     
-            # Resize frame to fill the label while maintaining aspect ratio
-            frame = cv2.resize(frame, (int(frame_width * scale_factor), int(frame_height * scale_factor)))
+        # Check that the frame was resized correctly
+        if frame_resized.shape[0] > label_height or frame_resized.shape[1] > label_width:
+            self.status_var.set("⚠️ Frame resize error.")
+            self.master.after(1000, self.update_video)  # Retry in 1s
+            return
     
-            # Center the frame if necessary to remove black bars
-            top = (label_height - frame.shape[0]) // 2
-            left = (label_width - frame.shape[1]) // 2
-            frame_padded = cv2.copyMakeBorder(frame, top, label_height - frame.shape[0] - top, left, label_width - frame.shape[1] - left, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+        # Center the frame if necessary to remove black bars
+        top = (label_height - frame_resized.shape[0]) // 2
+        left = (label_width - frame_resized.shape[1]) // 2
+        frame_padded = cv2.copyMakeBorder(frame_resized, top, label_height - frame_resized.shape[0] - top, left, label_width - frame_resized.shape[1] - left, cv2.BORDER_CONSTANT, value=(0, 0, 0))
     
         # Convert frame to ImageTk format
         img = Image.fromarray(frame_padded)
@@ -235,6 +243,7 @@ class LockerAccessUI:
     
         # Schedule the next video frame update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
 
