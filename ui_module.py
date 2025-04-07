@@ -189,18 +189,11 @@ class LockerAccessUI:
         if not self.camera_manager or not self.camera_manager.picam2:
             self.status_var.set("❌ Camera not available.")
             self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
-            self.master.after(1000, self.update_video)
-            return
-        
-        # Capture a frame from the camera
-        try:
-            frame = self.camera_manager.capture_frame()
-        except Exception as e:
-            self.status_var.set(f"⚠️ Error capturing frame: {e}")
-            self.video_label.configure(image="", text="Frame Capture Error", font=('Arial', 24), fg="orange")
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
     
+        # Capture frame
+        frame = self.camera_manager.capture_frame()
         if frame is None:
             self.status_var.set("⚠️ Failed to capture frame.")
             self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
@@ -210,16 +203,19 @@ class LockerAccessUI:
         # Flip before recognition so coordinates match
         frame = cv2.flip(frame, 1)
     
-        # Get dimensions for flipping
+        # Get frame dimensions
         frame_width = frame.shape[1]
         frame_height = frame.shape[0]
     
-        # Flip recognition coordinates to match flipped image
+        # Handle if frame dimensions are smaller or different than expected
+        if frame_width != 640 or frame_height != 480:
+            frame = cv2.resize(frame, (640, 480))  # Resize to standard dimensions if necessary
+    
+        # Handle face recognition rectangles and names
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
     
         for name, (top, right, bottom, left) in recognized:
-            # Flip horizontal positions
             flipped_left = frame_width - right
             flipped_right = frame_width - left
     
@@ -232,30 +228,23 @@ class LockerAccessUI:
                 success, message = self.locker_manager.open_locker(name)
                 self.status_var.set(message)
     
-        # Resize frame to match the label size exactly without distortion
+        # Resize frame to fit the video label size
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
     
+        # Ensure the frame fills the video label
         if label_width > 0 and label_height > 0:
-            # Resize while maintaining the aspect ratio of the camera feed
-            aspect_ratio = frame_width / frame_height
-            new_width = label_width
-            new_height = int(label_width / aspect_ratio)
+            frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
     
-            if new_height > label_height:
-                new_height = label_height
-                new_width = int(label_height * aspect_ratio)
-    
-            # Resize frame to fill the label without distortion
-            frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-        
-        # Convert frame and show in label
+        # Convert frame to ImageTk format
         img = Image.fromarray(frame)
         imgtk = ImageTk.PhotoImage(image=img)
+    
+        # Update the UI with the frame
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
-        
-        # Schedule next update (~30 FPS)
+    
+        # Schedule the next video frame update (~30 FPS)
         self.master.after(33, self.update_video)
 
 
