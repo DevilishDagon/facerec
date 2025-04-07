@@ -87,7 +87,7 @@ class LockerAccessUI:
 
         # Top: Video Frame
         self.video_label = tk.Label(master, bg="black")
-        self.video_label.place(x=0, y=0, width=800, height=400)  # Top 75%
+        self.video_label.place(x=10, y=10, width=800, height=400)  # Top 75%
 
         # Bottom: Control Frame
         control_frame = tk.Frame(master, bg="black")
