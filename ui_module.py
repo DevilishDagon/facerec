@@ -8,9 +8,7 @@ import threading
 import face_recognition
 import face_recognition_module
 from datetime import datetime
-import numpy as np  # Added missing numpy import
-
-print("🧠 UI Module - Running version from April 7, 2025")
+import numpy as np
 
 class VirtualKeyboard:
     def __init__(self, master, callback):
@@ -39,7 +37,6 @@ class VirtualKeyboard:
                                 command=lambda c=char.lower(): self.add_char(c))
                 btn.pack(side=tk.LEFT)
         
-        # Special buttons
         special_frame = tk.Frame(self.window)
         special_frame.pack(pady=10)
         
@@ -78,13 +75,12 @@ class LockerAccessUI:
         master.geometry("800x480")
         master.configure(bg="black")
         
-        self.BUTTON_HEIGHT = 60  # Reduced height (was 100)
+        self.BUTTON_HEIGHT = 60
         
         master.grid_rowconfigure(0, weight=1)
         master.grid_rowconfigure(1, weight=0)
         master.grid_columnconfigure(0, weight=1)
         
-        # Video frame
         self.video_frame = tk.Frame(master, bg="black")
         self.video_frame.grid(row=0, column=0, sticky="nsew")
         
@@ -93,14 +89,12 @@ class LockerAccessUI:
                                     font=('Arial', 24))
         self.video_label.pack(fill=tk.BOTH, expand=True)
         
-        # Button frame
         self.button_area = tk.Frame(master, bg="black", height=self.BUTTON_HEIGHT)
         self.button_area.grid(row=1, column=0, sticky="ew")
         self.button_area.grid_propagate(False)
         
         self.create_buttons(self.button_area)
         
-        # Variables for face recognition
         self.recognized_faces = []
         self.recognition_lock = threading.Lock()
         self.last_recognition_time = datetime.now()
@@ -109,14 +103,11 @@ class LockerAccessUI:
         
         self.status_var = tk.StringVar()
         
-        # Placeholder for initial frame
         self.placeholder_frame = self.create_placeholder_frame(800, 380)
         
-        # Initialize recognition thread
         self.recognition_thread = threading.Thread(target=self.run_face_recognition_loop, daemon=True)
         self.recognition_thread.start()
         
-        # Start the video update
         self.update_video()
 
     def create_buttons(self, parent):
@@ -142,7 +133,6 @@ class LockerAccessUI:
 
     def register_face(self, name):
         try:
-            # Capture frame
             frame = self.camera_manager.capture_frame()
             if frame is None:
                 messagebox.showerror("Error", "Failed to capture image. Please try again.")
@@ -183,16 +173,11 @@ class LockerAccessUI:
                 self.master.after(1000, self.update_video)
                 return
 
-            # Get dimensions and scale the frame
-            frame_height, frame_width = frame.shape[:2]
-            label_width = self.video_label.winfo_width()
-            label_height = self.video_label.winfo_height()
-
-            frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+            frame_resized = cv2.resize(frame, (self.video_label.winfo_width(), self.video_label.winfo_height()), interpolation=cv2.INTER_LINEAR)
             frame_resized = cv2.flip(frame_resized, 1)
 
-            scale_x = label_width / frame_width
-            scale_y = label_height / frame_height
+            scale_x = self.video_label.winfo_width() / frame.shape[1]
+            scale_y = self.video_label.winfo_height() / frame.shape[0]
 
             with self.recognition_lock:
                 recognized = list(self.recognized_faces)
@@ -203,8 +188,8 @@ class LockerAccessUI:
                 scaled_left = int(left * scale_x)
                 scaled_right = int(right * scale_x)
 
-                flipped_left = label_width - scaled_right
-                flipped_right = label_width - scaled_left
+                flipped_left = self.video_label.winfo_width() - scaled_right
+                flipped_right = self.video_label.winfo_width() - scaled_left
 
                 color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
                 cv2.rectangle(frame_resized, (flipped_left, scaled_top), (flipped_right, scaled_bottom), color, 2)
