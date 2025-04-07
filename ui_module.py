@@ -1,4 +1,3 @@
-#ui_module.py
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -8,6 +7,7 @@ import threading
 import face_recognition
 import face_recognition_module
 from datetime import datetime
+import numpy as np  # Added missing numpy import
 
 print("🧠 UI Module - Running version from April 7, 2025")
 
@@ -127,6 +127,15 @@ class LockerAccessUI:
         # Pre-render a placeholder image for the UI
         self.placeholder_frame = self.create_placeholder_frame(800, 380)
         
+        # Check camera initialization
+        try:
+            if not self.camera_manager or not self.camera_manager.picam2:
+                self.status_var.set("❌ Camera initialization failed")
+                print("[UI] Camera initialization failed")
+        except Exception as e:
+            self.status_var.set(f"❌ Camera error: {str(e)[:50]}")
+            print(f"[UI] Camera error: {str(e)}")
+        
         # Update UI immediately
         master.update_idletasks()
         
@@ -139,13 +148,18 @@ class LockerAccessUI:
 
     def create_placeholder_frame(self, width, height):
         """Create a placeholder frame with welcome text"""
-        frame = np.zeros((height, width, 3), dtype=np.uint8)
-        # Add welcome text
-        cv2.putText(frame, "Locker Access System", (width//2-150, height//2-30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-        cv2.putText(frame, "Starting camera...", (width//2-120, height//2+30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
-        return frame
+        try:
+            frame = np.zeros((height, width, 3), dtype=np.uint8)
+            # Add welcome text
+            cv2.putText(frame, "Locker Access System", (width//2-150, height//2-30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+            cv2.putText(frame, "Starting camera...", (width//2-120, height//2+30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
+            return frame
+        except Exception as e:
+            print(f"[UI] Error creating placeholder frame: {str(e)}")
+            # Return a simple black frame as fallback
+            return np.zeros((height, width, 3), dtype=np.uint8)
 
     def create_buttons(self, parent):
         # Create button frame at the bottom of button area
@@ -167,11 +181,19 @@ class LockerAccessUI:
 
     def show_add_face_keyboard(self):
         """Show keyboard for adding a new face"""
-        VirtualKeyboard(self.master, self.register_face)
+        try:
+            VirtualKeyboard(self.master, self.register_face)
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open keyboard: {str(e)}")
+            print(f"[UI] Keyboard error: {str(e)}")
 
     def show_delete_face_keyboard(self):
         """Show keyboard for deleting a face"""
-        VirtualKeyboard(self.master, self.delete_face)
+        try:
+            VirtualKeyboard(self.master, self.delete_face)
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open keyboard: {str(e)}")
+            print(f"[UI] Keyboard error: {str(e)}")
 
     def register_face(self, name):
         """
@@ -179,35 +201,39 @@ class LockerAccessUI:
         
         :param name: Name to register
         """
-        # Capture frame
-        frame = self.camera_manager.capture_frame()
-        if frame is None:
-            messagebox.showerror("Error", "Failed to capture image. Please try again.")
-            return
+        try:
+            # Capture frame
+            frame = self.camera_manager.capture_frame()
+            if frame is None:
+                messagebox.showerror("Error", "Failed to capture image. Please try again.")
+                return
 
-        # Convert to RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Convert to RGB
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Detect faces
-        face_locations = face_recognition.face_locations(rgb_frame)
-        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+            # Detect faces
+            face_locations = face_recognition.face_locations(rgb_frame)
+            face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
-        if not face_locations:
-            messagebox.showerror("Error", "No face detected. Try again.")
-            return
+            if not face_locations:
+                messagebox.showerror("Error", "No face detected. Try again.")
+                return
 
-        # Register first detected face
-        if self.face_recognizer.register_face(name, face_encodings[0]):
-            # Assign locker
-            locker = self.locker_manager.assign_locker(name)
-            if locker:
-                messagebox.showinfo("Success",
-                                     f"Registered {name} - Locker #{locker['locker']}")
-                self.face_recognizer.save_encodings()
+            # Register first detected face
+            if self.face_recognizer.register_face(name, face_encodings[0]):
+                # Assign locker
+                locker = self.locker_manager.assign_locker(name)
+                if locker:
+                    messagebox.showinfo("Success",
+                                         f"Registered {name} - Locker #{locker['locker']}")
+                    self.face_recognizer.save_encodings()
+                else:
+                    messagebox.showerror("Error", "Could not assign locker")
             else:
-                messagebox.showerror("Error", "Could not assign locker")
-        else:
-            messagebox.showerror("Error", "Face already registered")
+                messagebox.showerror("Error", "Face already registered")
+        except Exception as e:
+            messagebox.showerror("Error", f"Registration failed: {str(e)}")
+            print(f"[UI] Registration error: {str(e)}")
 
     def delete_face(self, name):
         """
@@ -215,171 +241,208 @@ class LockerAccessUI:
         
         :param name: Name to delete
         """
-        name = name.lower()
-        if name in self.face_recognizer.known_names:
-            index = self.face_recognizer.known_names.index(name)
-            self.face_recognizer.known_names.pop(index)
-            self.face_recognizer.known_encodings.pop(index)
-            self.face_recognizer.save_encodings()
-            
-            # Also remove locker assignment if it exists
-            if name in self.locker_manager.lockers:
-                del self.locker_manager.lockers[name]
-                self.locker_manager.save_lockers()
+        try:
+            name = name.lower()
+            if name in self.face_recognizer.known_names:
+                index = self.face_recognizer.known_names.index(name)
+                self.face_recognizer.known_names.pop(index)
+                self.face_recognizer.known_encodings.pop(index)
+                self.face_recognizer.save_encodings()
                 
-            messagebox.showinfo("Success", f"Deleted {name}")
-        else:
-            messagebox.showerror("Error", f"Name '{name}' not found")
+                # Also remove locker assignment if it exists
+                if name in self.locker_manager.lockers:
+                    del self.locker_manager.lockers[name]
+                    self.locker_manager.save_lockers()
+                    
+                messagebox.showinfo("Success", f"Deleted {name}")
+            else:
+                messagebox.showerror("Error", f"Name '{name}' not found")
+        except Exception as e:
+            messagebox.showerror("Error", f"Deletion failed: {str(e)}")
+            print(f"[UI] Deletion error: {str(e)}")
 
     def exit_program(self):
         """Exit the application"""
-        if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
-            self.running = False
-            if self.camera_manager:
-                self.camera_manager.stop()
-            if self.locker_manager:
-                self.locker_manager.cleanup()
-            self.master.quit()
+        try:
+            if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
+                self.running = False
+                if self.camera_manager:
+                    self.camera_manager.stop()
+                if self.locker_manager:
+                    self.locker_manager.cleanup()
+                # Force cleanup
+                self.master.after(100, self.master.destroy)
+        except Exception as e:
+            print(f"[UI] Error during shutdown: {str(e)}")
+            self.master.destroy()
 
     def update_video(self):
         """Update the video display with the current camera frame"""
         if not self.running:
             return
             
-        if not self.camera_manager or not self.camera_manager.picam2:
-            # Show placeholder if camera not available
-            img = Image.fromarray(self.placeholder_frame)
-            imgtk = ImageTk.PhotoImage(image=img)
-            self.video_label.imgtk = imgtk
-            self.video_label.configure(image=imgtk)
-            self.status_var.set("❌ Camera not available.")
-            self.master.after(1000, self.update_video)  # Retry in 1s
-            return
+        try:
+            if not self.camera_manager or not self.camera_manager.picam2:
+                # Show placeholder if camera not available
+                img = Image.fromarray(self.placeholder_frame)
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.video_label.imgtk = imgtk
+                self.video_label.configure(image=imgtk)
+                self.status_var.set("❌ Camera not available.")
+                self.master.after(1000, self.update_video)  # Retry in 1s
+                return
 
-        # Capture frame
-        frame = self.camera_manager.capture_frame()
-        if frame is None:
-            # Show placeholder if frame capture failed
-            img = Image.fromarray(self.placeholder_frame)
+            # Capture frame
+            frame = self.camera_manager.capture_frame()
+            if frame is None:
+                # Show placeholder if frame capture failed
+                img = Image.fromarray(self.placeholder_frame)
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.video_label.imgtk = imgtk
+                self.video_label.configure(image=imgtk)
+                self.status_var.set("⚠️ Failed to capture frame.")
+                self.master.after(1000, self.update_video)
+                return
+
+            # Get frame and label dimensions
+            frame_height, frame_width = frame.shape[:2]
+            label_width = self.video_label.winfo_width()
+            label_height = self.video_label.winfo_height()
+
+            # If UI isn't fully initialized yet (dimensions not set)
+            if label_width <= 1 or label_height <= 1:
+                # Use the current window dimensions to estimate video area
+                win_width = self.master.winfo_width()
+                win_height = self.master.winfo_height() - self.BUTTON_HEIGHT
+                
+                # Placeholder with dimensions that match the window
+                placeholder = self.create_placeholder_frame(win_width, win_height)
+                img = Image.fromarray(placeholder)
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.video_label.imgtk = imgtk
+                self.video_label.configure(image=imgtk)
+                
+                # Try again soon
+                self.status_var.set("Starting camera...")
+                self.master.after(100, self.update_video)
+                return
+                
+            # UI is initialized
+            if not self.ui_initialized:
+                self.ui_initialized = True
+                self.status_var.set("System ready")
+
+            # Resize the frame to fill the label completely, without black bars
+            frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+
+            # Flip the frame horizontally (to correct for mirrored display)
+            frame_resized = cv2.flip(frame_resized, 1)
+
+            # Calculate resizing scale factors
+            scale_x = label_width / frame_width
+            scale_y = label_height / frame_height
+
+            # Overlay face recognition results on the resized frame
+            with self.recognition_lock:
+                recognized = list(self.recognized_faces)
+
+            for name, (top, right, bottom, left) in recognized:
+                # Scale the coordinates according to the resized frame
+                scaled_top = int(top * scale_y)
+                scaled_bottom = int(bottom * scale_y)
+                scaled_left = int(left * scale_x)
+                scaled_right = int(right * scale_x)
+
+                # Flip horizontal positions to match the frame flip
+                flipped_left = label_width - scaled_right
+                flipped_right = label_width - scaled_left
+
+                # Draw rectangles and put text for face recognition
+                color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+                cv2.rectangle(frame_resized, (flipped_left, scaled_top), (flipped_right, scaled_bottom), color, 2)
+                cv2.putText(frame_resized, name, (flipped_left, scaled_top - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+
+            # Convert frame to ImageTk format for display in the UI
+            img = Image.fromarray(frame_resized)
             imgtk = ImageTk.PhotoImage(image=img)
+
+            # Update the video label with the new frame
             self.video_label.imgtk = imgtk
             self.video_label.configure(image=imgtk)
-            self.status_var.set("⚠️ Failed to capture frame.")
+
+            # Schedule the next update (~30 FPS)
+            self.master.after(33, self.update_video)
+            
+        except Exception as e:
+            print(f"[UI] Error in update_video: {str(e)}")
+            self.status_var.set(f"⚠️ Display error: {str(e)[:50]}")
+            
+            # Show a placeholder image to avoid complete black screen
+            try:
+                img = Image.fromarray(self.placeholder_frame)
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.video_label.imgtk = imgtk
+                self.video_label.configure(image=imgtk)
+            except:
+                # If even that fails, set a text message
+                self.video_label.configure(image='', text="System Error")
+                
+            # Try again in 1 second
             self.master.after(1000, self.update_video)
-            return
-
-        # Get frame and label dimensions
-        frame_height, frame_width = frame.shape[:2]
-        label_width = self.video_label.winfo_width()
-        label_height = self.video_label.winfo_height()
-
-        # If UI isn't fully initialized yet (dimensions not set)
-        if label_width <= 1 or label_height <= 1:
-            # Use the current window dimensions to estimate video area
-            win_width = self.master.winfo_width()
-            win_height = self.master.winfo_height() - self.BUTTON_HEIGHT
-            
-            # Placeholder with dimensions that match the window
-            placeholder = self.create_placeholder_frame(win_width, win_height)
-            img = Image.fromarray(placeholder)
-            imgtk = ImageTk.PhotoImage(image=img)
-            self.video_label.imgtk = imgtk
-            self.video_label.configure(image=imgtk)
-            
-            # Try again soon
-            self.status_var.set("Starting camera...")
-            self.master.after(100, self.update_video)
-            return
-            
-        # UI is initialized
-        if not self.ui_initialized:
-            self.ui_initialized = True
-            self.status_var.set("System ready")
-
-        # Resize the frame to fill the label completely, without black bars
-        frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
-
-        # Flip the frame horizontally (to correct for mirrored display)
-        frame_resized = cv2.flip(frame_resized, 1)
-
-        # Calculate resizing scale factors
-        scale_x = label_width / frame_width
-        scale_y = label_height / frame_height
-
-        # Overlay face recognition results on the resized frame
-        with self.recognition_lock:
-            recognized = list(self.recognized_faces)
-
-        for name, (top, right, bottom, left) in recognized:
-            # Scale the coordinates according to the resized frame
-            scaled_top = int(top * scale_y)
-            scaled_bottom = int(bottom * scale_y)
-            scaled_left = int(left * scale_x)
-            scaled_right = int(right * scale_x)
-
-            # Flip horizontal positions to match the frame flip
-            flipped_left = label_width - scaled_right
-            flipped_right = label_width - scaled_left
-
-            # Draw rectangles and put text for face recognition
-            color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-            cv2.rectangle(frame_resized, (flipped_left, scaled_top), (flipped_right, scaled_bottom), color, 2)
-            cv2.putText(frame_resized, name, (flipped_left, scaled_top - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-
-        # Convert frame to ImageTk format for display in the UI
-        img = Image.fromarray(frame_resized)
-        imgtk = ImageTk.PhotoImage(image=img)
-
-        # Update the video label with the new frame
-        self.video_label.imgtk = imgtk
-        self.video_label.configure(image=imgtk)
-
-        # Schedule the next update (~30 FPS)
-        self.master.after(33, self.update_video)
 
     def run_face_recognition_loop(self):
         """Background thread for face recognition processing"""
-        if not self.camera_manager or not self.camera_manager.picam2:
-            print("[UI] Camera manager not initialized. Skipping recognition loop.")
-            return
-
+        print("[UI] Starting face recognition thread")
+        
         while self.running:
-            frame = self.camera_manager.capture_frame(resize_factor=0.25)
-            if frame is None:
-                time.sleep(0.1)
-                continue
-                
-            rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-            face_locations = face_recognition.face_locations(rgb_small)
-            face_encodings = face_recognition.face_encodings(rgb_small, face_locations)
-            
-            recognized = []
-    
-            if face_encodings:
-                for encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
-                    name = self.face_recognizer.match_face(encoding)
-                    # Apply scale factor to compensate for resized frame
-                    recognized.append((name, (top * 4, right * 4, bottom * 4, left * 4)))
+            try:
+                if not self.camera_manager or not self.camera_manager.picam2:
+                    print("[UI] Camera manager not initialized. Waiting...")
+                    time.sleep(1)
+                    continue
+
+                frame = self.camera_manager.capture_frame(resize_factor=0.25)
+                if frame is None:
+                    time.sleep(0.1)
+                    continue
                     
-                    # Check for locker action if recognized
-                    if name != "Unknown":
-                        current_time = datetime.now()
-                        time_diff = (current_time - self.last_recognition_time).total_seconds()
+                rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+                face_locations = face_recognition.face_locations(rgb_small)
+                face_encodings = face_recognition.face_encodings(rgb_small, face_locations)
+                
+                recognized = []
+        
+                if face_encodings:
+                    for encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
+                        name = self.face_recognizer.match_face(encoding)
+                        # Apply scale factor to compensate for resized frame
+                        recognized.append((name, (top * 4, right * 4, bottom * 4, left * 4)))
                         
-                        # Open locker if same person recognized for at least 2 seconds
-                        if time_diff > 2:
-                            success, message = self.locker_manager.open_locker(name)
-                            if success:
-                                self.status_var.set(f"✅ Welcome {name}! {message}")
-                            else:
-                                self.status_var.set(f"⚠️ {message}")
+                        # Check for locker action if recognized
+                        if name != "Unknown":
+                            current_time = datetime.now()
+                            time_diff = (current_time - self.last_recognition_time).total_seconds()
                             
-                            self.last_recognition_time = current_time
-                        
-            with self.recognition_lock:
-                self.recognized_faces = recognized
+                            # Open locker if same person recognized for at least 2 seconds
+                            if time_diff > 2:
+                                success, message = self.locker_manager.open_locker(name)
+                                if success:
+                                    self.status_var.set(f"✅ Welcome {name}! {message}")
+                                else:
+                                    self.status_var.set(f"⚠️ {message}")
+                                
+                                self.last_recognition_time = current_time
+                            
+                with self.recognition_lock:
+                    self.recognized_faces = recognized
+                    
+            except Exception as e:
+                print(f"[UI] Error in face recognition loop: {str(e)}")
+                time.sleep(1)  # Wait a bit before trying again
                 
             # Short sleep to prevent CPU overuse
             time.sleep(0.1)
+        
+        print("[UI] Face recognition thread stopped")
