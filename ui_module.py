@@ -217,19 +217,29 @@ class LockerAccessUI:
         # Flip the frame horizontally (to correct for mirrored display)
         frame_resized = cv2.flip(frame_resized, 1)
     
+        # Calculate resizing scale factors
+        scale_x = label_width / frame_width
+        scale_y = label_height / frame_height
+    
         # Overlay face recognition results on the resized frame
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
     
         for name, (top, right, bottom, left) in recognized:
-            # Adjust coordinates after the flip
-            flipped_left = label_width - right
-            flipped_right = label_width - left
+            # Scale the coordinates according to the resized frame
+            scaled_top = int(top * scale_y)
+            scaled_bottom = int(bottom * scale_y)
+            scaled_left = int(left * scale_x)
+            scaled_right = int(right * scale_x)
+    
+            # Flip horizontal positions to match the frame flip
+            flipped_left = label_width - scaled_right
+            flipped_right = label_width - scaled_left
     
             # Draw rectangles and put text for face recognition
             color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-            cv2.rectangle(frame_resized, (flipped_left, top), (flipped_right, bottom), color, 2)
-            cv2.putText(frame_resized, name, (flipped_left, top - 10),
+            cv2.rectangle(frame_resized, (flipped_left, scaled_top), (flipped_right, scaled_bottom), color, 2)
+            cv2.putText(frame_resized, name, (flipped_left, scaled_top - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
     
         # Convert frame to ImageTk format for display in the UI
