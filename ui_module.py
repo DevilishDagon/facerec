@@ -192,7 +192,7 @@ class LockerAccessUI:
             self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
-    
+        
         # Capture frame
         frame = self.camera_manager.capture_frame()
         if frame is None:
@@ -200,7 +200,7 @@ class LockerAccessUI:
             self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
             self.master.after(1000, self.update_video)
             return
-    
+        
         # Get frame and label dimensions
         frame_height, frame_width = frame.shape[:2]
         label_width = self.video_label.winfo_width()
@@ -253,6 +253,7 @@ class LockerAccessUI:
     
         # Schedule the next update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
 
