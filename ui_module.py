@@ -86,11 +86,11 @@ class LockerAccessUI:
         master.geometry("800x480")
         master.configure(bg="black")
 
-        # Video Frame - Fill the entire screen
+        # Video Frame - Fill the entire screen and allow buttons to overlay
         self.video_label = tk.Label(master, bg="black")
-        self.video_label.place(x=0, y=0, relwidth=1.0, relheight=1.0)  # Fill the whole screen
+        self.video_label.place(x=0, y=0, relwidth=1.0, relheight=1.0)  # Make sure it fills the screen
 
-        # Control Frame - Overlay buttons on top of the video
+        # Control Frame - Overlay buttons at the bottom, without affecting the video size
         control_frame = tk.Frame(master, bg="black")
         control_frame.place(x=0, y=master.winfo_height() - 120, width=master.winfo_width(), height=120)  # Bottom 25%
 
@@ -113,7 +113,7 @@ class LockerAccessUI:
         self.update_video()
 
     def create_buttons(self, parent):
-        # Buttons are overlayed on the bottom of the screen (not part of the video area)
+        # Buttons will overlay at the bottom of the screen
         button_frame = tk.Frame(parent, bg="black")
         button_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
