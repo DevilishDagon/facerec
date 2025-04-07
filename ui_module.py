@@ -9,7 +9,7 @@ import face_recognition
 import face_recognition_module
 from datetime import datetime
 
-print("🧠 UI Module - Running version from March 31, 2025")
+print("🧠 UI Module - Running version from April 7, 2025")
 
 class VirtualKeyboard:
     def __init__(self, master, callback):
@@ -96,7 +96,10 @@ class LockerAccessUI:
         self.video_frame = tk.Frame(master, bg="black")
         self.video_frame.grid(row=0, column=0, sticky="nsew")
         
-        self.video_label = tk.Label(self.video_frame, bg="black")
+        # Create the video label with an initial welcome message
+        self.video_label = tk.Label(self.video_frame, bg="black", 
+                                     text="Starting camera...", fg="white",
+                                     font=('Arial', 24))
         self.video_label.pack(fill=tk.BOTH, expand=True)
         
         # Create button area with fixed height
@@ -106,6 +109,7 @@ class LockerAccessUI:
         
         # Status label inside button area
         self.status_var = tk.StringVar()
+        self.status_var.set("System initializing...")
         self.status_label = tk.Label(self.button_area, textvariable=self.status_var,
                                font=('Arial', 14), bg="black", fg="white")
         self.status_label.pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
@@ -118,6 +122,13 @@ class LockerAccessUI:
         self.recognition_lock = threading.Lock()
         self.last_recognition_time = datetime.now()
         self.running = True
+        self.ui_initialized = False
+        
+        # Pre-render a placeholder image for the UI
+        self.placeholder_frame = self.create_placeholder_frame(800, 380)
+        
+        # Update UI immediately
+        master.update_idletasks()
         
         # Start the recognition thread
         self.recognition_thread = threading.Thread(target=self.run_face_recognition_loop, daemon=True)
@@ -125,6 +136,16 @@ class LockerAccessUI:
         
         # Start the video update
         self.update_video()
+
+    def create_placeholder_frame(self, width, height):
+        """Create a placeholder frame with welcome text"""
+        frame = np.zeros((height, width, 3), dtype=np.uint8)
+        # Add welcome text
+        cv2.putText(frame, "Locker Access System", (width//2-150, height//2-30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+        cv2.putText(frame, "Starting camera...", (width//2-120, height//2+30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
+        return frame
 
     def create_buttons(self, parent):
         # Create button frame at the bottom of button area
@@ -226,16 +247,24 @@ class LockerAccessUI:
             return
             
         if not self.camera_manager or not self.camera_manager.picam2:
+            # Show placeholder if camera not available
+            img = Image.fromarray(self.placeholder_frame)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.configure(image=imgtk)
             self.status_var.set("❌ Camera not available.")
-            self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
 
         # Capture frame
         frame = self.camera_manager.capture_frame()
         if frame is None:
+            # Show placeholder if frame capture failed
+            img = Image.fromarray(self.placeholder_frame)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.configure(image=imgtk)
             self.status_var.set("⚠️ Failed to capture frame.")
-            self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
             self.master.after(1000, self.update_video)
             return
 
@@ -244,11 +273,28 @@ class LockerAccessUI:
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
 
-        # Ensure the label has valid dimensions
+        # If UI isn't fully initialized yet (dimensions not set)
         if label_width <= 1 or label_height <= 1:
-            self.status_var.set("⚠️ Waiting for UI to initialize...")
-            self.master.after(100, self.update_video)  # Retry shortly
+            # Use the current window dimensions to estimate video area
+            win_width = self.master.winfo_width()
+            win_height = self.master.winfo_height() - self.BUTTON_HEIGHT
+            
+            # Placeholder with dimensions that match the window
+            placeholder = self.create_placeholder_frame(win_width, win_height)
+            img = Image.fromarray(placeholder)
+            imgtk = ImageTk.PhotoImage(image=img)
+            self.video_label.imgtk = imgtk
+            self.video_label.configure(image=imgtk)
+            
+            # Try again soon
+            self.status_var.set("Starting camera...")
+            self.master.after(100, self.update_video)
             return
+            
+        # UI is initialized
+        if not self.ui_initialized:
+            self.ui_initialized = True
+            self.status_var.set("System ready")
 
         # Resize the frame to fill the label completely, without black bars
         frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
