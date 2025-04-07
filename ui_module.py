@@ -192,7 +192,7 @@ class LockerAccessUI:
             self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
-
+    
         # Capture frame
         frame = self.camera_manager.capture_frame()
         if frame is None:
@@ -200,66 +200,56 @@ class LockerAccessUI:
             self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
             self.master.after(1000, self.update_video)
             return
-
+    
         # Get frame and label dimensions
         frame_height, frame_width = frame.shape[:2]
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
-
+    
         # Ensure the label has valid dimensions
         if label_width <= 0 or label_height <= 0:
             self.status_var.set("⚠️ Label dimensions are invalid.")
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
-
-        # Maintain aspect ratio while filling the label area
-        aspect_ratio = frame_width / frame_height
-        if label_width / label_height > aspect_ratio:
-            new_width = int(label_height * aspect_ratio)
-            new_height = label_height
+    
+        # Resize the frame only if necessary
+        if frame_width != label_width or frame_height != label_height:
+            try:
+                frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+            except Exception as e:
+                self.status_var.set(f"⚠️ Error resizing frame: {e}")
+                self.master.after(1000, self.update_video)  # Retry in 1s
+                return
         else:
-            new_width = label_width
-            new_height = int(label_width / aspect_ratio)
-
-        try:
-            frame_resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-        except Exception as e:
-            self.status_var.set(f"⚠️ Error resizing frame: {e}")
-            self.master.after(1000, self.update_video)  # Retry in 1s
-            return
-
-        # Center the image on the label
-        x_offset = (label_width - new_width) // 2
-        y_offset = (label_height - new_height) // 2
-        full_frame = cv2.copyMakeBorder(frame_resized, y_offset, label_height - new_height - y_offset, x_offset, label_width - new_width - x_offset, cv2.BORDER_CONSTANT, value=(0, 0, 0))
-
+            frame_resized = frame
+    
         # Flip the frame horizontally (to correct for mirrored display)
-        full_frame = cv2.flip(full_frame, 1)
-
+        frame_resized = cv2.flip(frame_resized, 1)
+    
         # Overlay face recognition results on the resized frame
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
-
+    
         for name, (top, right, bottom, left) in recognized:
             # Scale the coordinates according to the resized frame
-            scaled_top = int(top * (new_height / frame_height))
-            scaled_bottom = int(bottom * (new_height / frame_height))
-            scaled_left = int(left * (new_width / frame_width))
-            scaled_right = int(right * (new_width / frame_width))
-
+            scaled_top = int(top * (label_height / frame_height))
+            scaled_bottom = int(bottom * (label_height / frame_height))
+            scaled_left = int(left * (label_width / frame_width))
+            scaled_right = int(right * (label_width / frame_width))
+    
             # Draw rectangles and put text for face recognition
             color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-            cv2.rectangle(full_frame, (scaled_left, scaled_top), (scaled_right, scaled_bottom), color, 2)
-            cv2.putText(full_frame, name, (scaled_left, scaled_top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-
+            cv2.rectangle(frame_resized, (scaled_left, scaled_top), (scaled_right, scaled_bottom), color, 2)
+            cv2.putText(frame_resized, name, (scaled_left, scaled_top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+    
         # Convert frame to ImageTk format for display in the UI
-        img = Image.fromarray(full_frame)
+        img = Image.fromarray(frame_resized)
         imgtk = ImageTk.PhotoImage(image=img)
-
+    
         # Update the video label with the new frame
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
-
+    
         # Schedule the next update (~30 FPS)
         self.master.after(33, self.update_video)
 
