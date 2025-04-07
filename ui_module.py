@@ -214,35 +214,20 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
     
-        # If the label dimensions are valid, scale the frame to fill the label
-        scale_width = label_width / frame_width
-        scale_height = label_height / frame_height
-        scale_factor = min(scale_width, scale_height)
+        # Resize the frame to fit the label (without maintaining aspect ratio)
+        frame_resized = cv2.resize(frame, (label_width, label_height))
     
-        # Resize frame to fill the label while maintaining aspect ratio
-        frame_resized = cv2.resize(frame, (int(frame_width * scale_factor), int(frame_height * scale_factor)))
-    
-        # Check that the frame was resized correctly
-        if frame_resized.shape[0] > label_height or frame_resized.shape[1] > label_width:
-            self.status_var.set("⚠️ Frame resize error.")
-            self.master.after(1000, self.update_video)  # Retry in 1s
-            return
-    
-        # Center the frame if necessary to remove black bars
-        top = (label_height - frame_resized.shape[0]) // 2
-        left = (label_width - frame_resized.shape[1]) // 2
-        frame_padded = cv2.copyMakeBorder(frame_resized, top, label_height - frame_resized.shape[0] - top, left, label_width - frame_resized.shape[1] - left, cv2.BORDER_CONSTANT, value=(0, 0, 0))
-    
-        # Convert frame to ImageTk format
-        img = Image.fromarray(frame_padded)
+        # Convert the resized frame to ImageTk format
+        img = Image.fromarray(frame_resized)
         imgtk = ImageTk.PhotoImage(image=img)
     
-        # Update the UI with the frame
+        # Update the UI with the resized frame
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
     
         # Schedule the next video frame update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
 
