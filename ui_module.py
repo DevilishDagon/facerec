@@ -87,7 +87,7 @@ class LockerAccessUI:
 
         # Top: Video Frame
         self.video_label = tk.Label(master, bg="black")
-        self.video_label.place(x=10, y=10, width=800, height=400)  # Top 75%
+        self.video_label.place(x=0, y=0, relwidth=1, relheight=0.75)  # Top 75%
 
         # Bottom: Control Frame
         control_frame = tk.Frame(master, bg="black")
@@ -203,41 +203,30 @@ class LockerAccessUI:
         # Flip before recognition so coordinates match
         frame = cv2.flip(frame, 1)
     
-        # Get frame dimensions
-        frame_width = frame.shape[1]
-        frame_height = frame.shape[0]
-    
-        # Handle if frame dimensions are smaller or different than expected
-        if frame_width != 640 or frame_height != 480:
-            frame = cv2.resize(frame, (640, 480))  # Resize to standard dimensions if necessary
-    
-        # Handle face recognition rectangles and names
-        with self.recognition_lock:
-            recognized = list(self.recognized_faces)
-    
-        for name, (top, right, bottom, left) in recognized:
-            flipped_left = frame_width - right
-            flipped_right = frame_width - left
-    
-            color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-            cv2.rectangle(frame, (flipped_left, top), (flipped_right, bottom), color, 2)
-            cv2.putText(frame, name, (flipped_left, top - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-    
-            if name != "Unknown":
-                success, message = self.locker_manager.open_locker(name)
-                self.status_var.set(message)
-    
-        # Resize frame to fit the video label size
+        # Get frame and label dimensions
+        frame_height, frame_width = frame.shape[:2]
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
     
-        # Ensure the frame fills the video label
+        # If the label dimensions are valid, scale the frame to fill the label
         if label_width > 0 and label_height > 0:
-            frame = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+            # Calculate scale factor for both dimensions
+            scale_width = label_width / frame_width
+            scale_height = label_height / frame_height
+    
+            # Choose the smaller scale to avoid distortion and maintain aspect ratio
+            scale_factor = min(scale_width, scale_height)
+    
+            # Resize frame to fill the label while maintaining aspect ratio
+            frame = cv2.resize(frame, (int(frame_width * scale_factor), int(frame_height * scale_factor)))
+    
+            # Center the frame if necessary to remove black bars
+            top = (label_height - frame.shape[0]) // 2
+            left = (label_width - frame.shape[1]) // 2
+            frame_padded = cv2.copyMakeBorder(frame, top, label_height - frame.shape[0] - top, left, label_width - frame.shape[1] - left, cv2.BORDER_CONSTANT, value=(0, 0, 0))
     
         # Convert frame to ImageTk format
-        img = Image.fromarray(frame)
+        img = Image.fromarray(frame_padded)
         imgtk = ImageTk.PhotoImage(image=img)
     
         # Update the UI with the frame
@@ -246,6 +235,7 @@ class LockerAccessUI:
     
         # Schedule the next video frame update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
 
