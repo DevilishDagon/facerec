@@ -192,7 +192,7 @@ class LockerAccessUI:
             self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
-        
+
         # Capture frame
         frame = self.camera_manager.capture_frame()
         if frame is None:
@@ -200,57 +200,61 @@ class LockerAccessUI:
             self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
             self.master.after(1000, self.update_video)
             return
-        
+
         # Get frame and label dimensions
         frame_height, frame_width = frame.shape[:2]
         label_width = self.video_label.winfo_width()
         label_height = self.video_label.winfo_height()
-    
+
         # Ensure the label has valid dimensions
         if label_width <= 0 or label_height <= 0:
             self.status_var.set("⚠️ Label dimensions are invalid.")
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
-    
-        # Resize the frame to fill the label completely, without black bars
-        frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
-    
+
+        # Maintain aspect ratio while filling the label area
+        aspect_ratio = frame_width / frame_height
+        if label_width / label_height > aspect_ratio:
+            new_width = int(label_height * aspect_ratio)
+            new_height = label_height
+        else:
+            new_width = label_width
+            new_height = int(label_width / aspect_ratio)
+
+        frame_resized = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+
+        # Center the image on the label
+        x_offset = (label_width - new_width) // 2
+        y_offset = (label_height - new_height) // 2
+        full_frame = cv2.copyMakeBorder(frame_resized, y_offset, label_height - new_height - y_offset, x_offset, label_width - new_width - x_offset, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+
         # Flip the frame horizontally (to correct for mirrored display)
-        frame_resized = cv2.flip(frame_resized, 1)
-    
-        # Calculate resizing scale factors
-        scale_x = label_width / frame_width
-        scale_y = label_height / frame_height
-    
+        full_frame = cv2.flip(full_frame, 1)
+
         # Overlay face recognition results on the resized frame
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
-    
+
         for name, (top, right, bottom, left) in recognized:
             # Scale the coordinates according to the resized frame
-            scaled_top = int(top * scale_y)
-            scaled_bottom = int(bottom * scale_y)
-            scaled_left = int(left * scale_x)
-            scaled_right = int(right * scale_x)
-    
-            # Flip horizontal positions to match the frame flip
-            flipped_left = label_width - scaled_right
-            flipped_right = label_width - scaled_left
-    
+            scaled_top = int(top * (new_height / frame_height))
+            scaled_bottom = int(bottom * (new_height / frame_height))
+            scaled_left = int(left * (new_width / frame_width))
+            scaled_right = int(right * (new_width / frame_width))
+
             # Draw rectangles and put text for face recognition
             color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-            cv2.rectangle(frame_resized, (flipped_left, scaled_top), (flipped_right, scaled_bottom), color, 2)
-            cv2.putText(frame_resized, name, (flipped_left, scaled_top - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
-    
+            cv2.rectangle(full_frame, (scaled_left, scaled_top), (scaled_right, scaled_bottom), color, 2)
+            cv2.putText(full_frame, name, (scaled_left, scaled_top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+
         # Convert frame to ImageTk format for display in the UI
-        img = Image.fromarray(frame_resized)
+        img = Image.fromarray(full_frame)
         imgtk = ImageTk.PhotoImage(image=img)
-    
+
         # Update the video label with the new frame
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
-    
+
         # Schedule the next update (~30 FPS)
         self.master.after(33, self.update_video)
 
