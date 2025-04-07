@@ -85,21 +85,30 @@ class LockerAccessUI:
         master.attributes('-fullscreen', True)
         master.geometry("800x480")
         master.configure(bg="black")
-
-        # Video Frame - Fill the entire screen and allow buttons to overlay
-        self.video_label = tk.Label(master, bg="black")
-        self.video_label.place(x=0, y=0, relwidth=1.0, relheight=1.0)  # Make sure it fills the screen
-
-        # Control Frame - Overlay buttons at the bottom, without affecting the video size
-        control_frame = tk.Frame(master, bg="black")
-        control_frame.place(x=0, y=master.winfo_height() - 120, width=master.winfo_width(), height=120)  # Bottom 25%
-
+        
+        # Create main frame to hold everything
+        self.main_frame = tk.Frame(master, bg="black")
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Video Frame - Takes most of the space
+        self.video_frame = tk.Frame(self.main_frame, bg="black")
+        self.video_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.video_label = tk.Label(self.video_frame, bg="black")
+        self.video_label.pack(fill=tk.BOTH, expand=True)
+        
+        # Status and Controls Frame - Fixed at bottom
+        self.bottom_frame = tk.Frame(self.main_frame, bg="black", height=120)
+        self.bottom_frame.pack(fill=tk.X, side=tk.BOTTOM)
+        self.bottom_frame.pack_propagate(False)  # Prevent resizing
+        
+        # Status label
         self.status_var = tk.StringVar()
-        status_label = tk.Label(control_frame, textvariable=self.status_var,
+        status_label = tk.Label(self.bottom_frame, textvariable=self.status_var,
                                 font=('Arial', 14), bg="black", fg="white")
         status_label.pack(side=tk.TOP, fill=tk.X)
 
-        self.create_buttons(control_frame)
+        self.create_buttons(self.bottom_frame)
 
         # Rest of your setup...
         self.recognized_faces = []
@@ -206,9 +215,9 @@ class LockerAccessUI:
         label_height = self.video_label.winfo_height()
 
         # Ensure the label has valid dimensions
-        if label_width <= 0 or label_height <= 0:
-            self.status_var.set("⚠️ Label dimensions are invalid.")
-            self.master.after(1000, self.update_video)  # Retry in 1s
+        if label_width <= 1 or label_height <= 1:
+            self.status_var.set("⚠️ Waiting for UI to initialize...")
+            self.master.after(100, self.update_video)  # Retry shortly
             return
 
         # Resize the frame to fill the label completely, without black bars
@@ -260,6 +269,10 @@ class LockerAccessUI:
 
         while self.running:
             frame = self.camera_manager.capture_frame(resize_factor=0.25)
+            if frame is None:
+                time.sleep(0.1)
+                continue
+                
             rgb_small = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
             face_locations = face_recognition.face_locations(rgb_small)
@@ -273,9 +286,3 @@ class LockerAccessUI:
                     recognized.append((name, (top * 4, right * 4, bottom * 4, left * 4)))
             with self.recognition_lock:
                 self.recognized_faces = recognized
-
-            print(f"[DEBUG] Recognized: {recognized}")
-
-
-
-
