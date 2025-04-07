@@ -200,7 +200,7 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)
             return
     
-        # Flip before recognition so coordinates match
+        # Flip the frame horizontally
         frame = cv2.flip(frame, 1)
     
         # Get frame and label dimensions
@@ -214,19 +214,30 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
     
-        # Resize the frame to fit the label (without maintaining aspect ratio)
-        frame_resized = cv2.resize(frame, (label_width, label_height))
+        # Resize the frame to fit the label dimensions (stretch to fit)
+        frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
     
-        # Convert the resized frame to ImageTk format
+        # Overlay face recognition results on the resized frame
+        with self.recognition_lock:
+            recognized = list(self.recognized_faces)
+    
+        for name, (top, right, bottom, left) in recognized:
+            color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+            cv2.rectangle(frame_resized, (left, top), (right, bottom), color, 2)
+            cv2.putText(frame_resized, name, (left, top - 10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+    
+        # Convert frame to ImageTk format for display in the UI
         img = Image.fromarray(frame_resized)
         imgtk = ImageTk.PhotoImage(image=img)
     
-        # Update the UI with the resized frame
+        # Update the video label with the new frame
         self.video_label.imgtk = imgtk
         self.video_label.configure(image=imgtk)
     
-        # Schedule the next video frame update (~30 FPS)
+        # Schedule the next update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
 
