@@ -85,13 +85,13 @@ class LockerAccessUI:
         master.geometry("800x480")
         master.configure(bg="black")
 
-        # Top: Video Frame
+        # Top: Video Frame - Ensuring it fills the entire top space
         self.video_label = tk.Label(master, bg="black")
-        self.video_label.place(x=0, y=0, relwidth=1, relheight=0.75)  # Top 75%
+        self.video_label.place(x=0, y=0, width=master.winfo_width(), height=master.winfo_height() - 120)  # Top 75%
 
         # Bottom: Control Frame
         control_frame = tk.Frame(master, bg="black")
-        control_frame.place(x=0, y=360, width=800, height=120)  # Bottom 25%
+        control_frame.place(x=0, y=master.winfo_height() - 120, width=master.winfo_width(), height=120)  # Bottom 25%
 
         self.status_var = tk.StringVar()
         status_label = tk.Label(control_frame, textvariable=self.status_var,
@@ -110,6 +110,7 @@ class LockerAccessUI:
         self.recognition_thread.start()
 
         self.update_video()
+
 
     def create_buttons(self, parent):
         button_frame = tk.Frame(parent, bg="black")
