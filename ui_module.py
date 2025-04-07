@@ -85,9 +85,9 @@ class LockerAccessUI:
         master.geometry("800x480")
         master.configure(bg="black")
 
-        # Top: Video Frame
+        # Top: Video Frame - Ensuring it fills the entire top space
         self.video_label = tk.Label(master, bg="black")
-        self.video_label.place(x=0, y=0, width=master.winfo_width(), height=master.winfo_height() - 120)  # Top 75%
+        self.video_label.place(x=0, y=0, relwidth=1.0, relheight=0.75)  # Take up top 75%
 
         # Bottom: Control Frame
         control_frame = tk.Frame(master, bg="black")
@@ -212,19 +212,15 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
     
-        # Resize the frame only if necessary
-        if frame_width != label_width or frame_height != label_height:
-            try:
-                frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
-            except Exception as e:
-                self.status_var.set(f"⚠️ Error resizing frame: {e}")
-                self.master.after(1000, self.update_video)  # Retry in 1s
-                return
-        else:
-            frame_resized = frame
+        # Resize the frame to fill the label completely, without black bars
+        frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
     
         # Flip the frame horizontally (to correct for mirrored display)
         frame_resized = cv2.flip(frame_resized, 1)
+    
+        # Calculate resizing scale factors
+        scale_x = label_width / frame_width
+        scale_y = label_height / frame_height
     
         # Overlay face recognition results on the resized frame
         with self.recognition_lock:
@@ -232,15 +228,20 @@ class LockerAccessUI:
     
         for name, (top, right, bottom, left) in recognized:
             # Scale the coordinates according to the resized frame
-            scaled_top = int(top * (label_height / frame_height))
-            scaled_bottom = int(bottom * (label_height / frame_height))
-            scaled_left = int(left * (label_width / frame_width))
-            scaled_right = int(right * (label_width / frame_width))
+            scaled_top = int(top * scale_y)
+            scaled_bottom = int(bottom * scale_y)
+            scaled_left = int(left * scale_x)
+            scaled_right = int(right * scale_x)
+    
+            # Flip horizontal positions to match the frame flip
+            flipped_left = label_width - scaled_right
+            flipped_right = label_width - scaled_left
     
             # Draw rectangles and put text for face recognition
             color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-            cv2.rectangle(frame_resized, (scaled_left, scaled_top), (scaled_right, scaled_bottom), color, 2)
-            cv2.putText(frame_resized, name, (scaled_left, scaled_top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+            cv2.rectangle(frame_resized, (flipped_left, scaled_top), (flipped_right, scaled_bottom), color, 2)
+            cv2.putText(frame_resized, name, (flipped_left, scaled_top - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
     
         # Convert frame to ImageTk format for display in the UI
         img = Image.fromarray(frame_resized)
