@@ -192,7 +192,15 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)
             return
         
-        frame = self.camera_manager.capture_frame()
+        # Capture a frame from the camera
+        try:
+            frame = self.camera_manager.capture_frame()
+        except Exception as e:
+            self.status_var.set(f"⚠️ Error capturing frame: {e}")
+            self.video_label.configure(image="", text="Frame Capture Error", font=('Arial', 24), fg="orange")
+            self.master.after(1000, self.update_video)  # Retry in 1s
+            return
+    
         if frame is None:
             self.status_var.set("⚠️ Failed to capture frame.")
             self.video_label.configure(image="", text="No Frame", font=('Arial', 24), fg="orange")
@@ -249,6 +257,7 @@ class LockerAccessUI:
         
         # Schedule next update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
 
