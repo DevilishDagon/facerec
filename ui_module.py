@@ -87,21 +87,22 @@ class LockerAccessUI:
         # Constants
         self.BUTTON_HEIGHT = 100  # Height in pixels for the button area
         
-        # Create a container for the entire UI
-        self.container = tk.Frame(master, bg="black")
-        self.container.pack(fill=tk.BOTH, expand=True)
+        # Use grid instead of pack for better layout control
+        master.grid_rowconfigure(0, weight=1)  # Video area expands
+        master.grid_rowconfigure(1, weight=0)  # Button area fixed height
+        master.grid_columnconfigure(0, weight=1)
         
         # Create video frame (takes up everything except button area)
-        self.video_frame = tk.Frame(self.container, bg="black")
-        self.video_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
+        self.video_frame = tk.Frame(master, bg="black")
+        self.video_frame.grid(row=0, column=0, sticky="nsew")
         
         self.video_label = tk.Label(self.video_frame, bg="black")
         self.video_label.pack(fill=tk.BOTH, expand=True)
         
         # Create button area with fixed height
-        self.button_area = tk.Frame(self.container, bg="black", height=self.BUTTON_HEIGHT)
-        self.button_area.pack(fill=tk.X, side=tk.BOTTOM)
-        self.button_area.pack_propagate(False)  # Prevent this frame from resizing
+        self.button_area = tk.Frame(master, bg="black", height=self.BUTTON_HEIGHT)
+        self.button_area.grid(row=1, column=0, sticky="ew")
+        self.button_area.grid_propagate(False)  # Prevent this frame from resizing
         
         # Status label inside button area
         self.status_var = tk.StringVar()
@@ -124,24 +125,6 @@ class LockerAccessUI:
         
         # Start the video update
         self.update_video()
-        
-        # Ensure proper layout after window appears
-        self.master.update_idletasks()
-        self.master.after(100, self.check_layout)
-
-    def check_layout(self):
-        """Verify that buttons are visible and adjust if needed"""
-        # This function helps ensure buttons remain visible
-        if not self.running:
-            return
-            
-        # Make sure button area is visible
-        if not self.button_area.winfo_ismapped():
-            print("[UI] Warning: Button area not visible, adjusting layout.")
-            self.button_area.pack(fill=tk.X, side=tk.BOTTOM)
-            self.button_area.pack_propagate(False)
-            
-        self.master.after(1000, self.check_layout)  # Check periodically
 
     def create_buttons(self, parent):
         # Create button frame at the bottom of button area
