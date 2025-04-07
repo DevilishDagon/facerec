@@ -22,9 +22,6 @@ class VirtualKeyboard:
         self.window = tk.Toplevel(master)
         self.window.title("Virtual Keyboard")
         self.window.geometry("600x400")
-        self.video_label = tk.Label(master, bg="black")
-        self.video_label.pack(fill=tk.BOTH, expand=True)
-
         
         self.callback = callback
         self.input_var = tk.StringVar()
@@ -81,60 +78,88 @@ class LockerAccessUI:
         self.face_recognizer = face_recognizer
         self.locker_manager = locker_manager
 
+        # Configure the root window
         master.title("Locker Access System")
         master.attributes('-fullscreen', True)
         master.geometry("800x480")
         master.configure(bg="black")
         
-        # Create main frame to hold everything
-        self.main_frame = tk.Frame(master, bg="black")
-        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        # Constants
+        self.BUTTON_HEIGHT = 100  # Height in pixels for the button area
         
-        # Video Frame - Takes most of the space
-        self.video_frame = tk.Frame(self.main_frame, bg="black")
-        self.video_frame.pack(fill=tk.BOTH, expand=True)
+        # Create a container for the entire UI
+        self.container = tk.Frame(master, bg="black")
+        self.container.pack(fill=tk.BOTH, expand=True)
+        
+        # Create video frame (takes up everything except button area)
+        self.video_frame = tk.Frame(self.container, bg="black")
+        self.video_frame.pack(fill=tk.BOTH, expand=True, side=tk.TOP)
         
         self.video_label = tk.Label(self.video_frame, bg="black")
         self.video_label.pack(fill=tk.BOTH, expand=True)
         
-        # Status and Controls Frame - Fixed at bottom
-        self.bottom_frame = tk.Frame(self.main_frame, bg="black", height=120)
-        self.bottom_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        self.bottom_frame.pack_propagate(False)  # Prevent resizing
+        # Create button area with fixed height
+        self.button_area = tk.Frame(self.container, bg="black", height=self.BUTTON_HEIGHT)
+        self.button_area.pack(fill=tk.X, side=tk.BOTTOM)
+        self.button_area.pack_propagate(False)  # Prevent this frame from resizing
         
-        # Status label
+        # Status label inside button area
         self.status_var = tk.StringVar()
-        status_label = tk.Label(self.bottom_frame, textvariable=self.status_var,
-                                font=('Arial', 14), bg="black", fg="white")
-        status_label.pack(side=tk.TOP, fill=tk.X)
-
-        self.create_buttons(self.bottom_frame)
-
-        # Rest of your setup...
+        self.status_label = tk.Label(self.button_area, textvariable=self.status_var,
+                               font=('Arial', 14), bg="black", fg="white")
+        self.status_label.pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
+        
+        # Create buttons
+        self.create_buttons(self.button_area)
+        
+        # Initialize recognition variables
         self.recognized_faces = []
         self.recognition_lock = threading.Lock()
         self.last_recognition_time = datetime.now()
         self.running = True
-
+        
+        # Start the recognition thread
         self.recognition_thread = threading.Thread(target=self.run_face_recognition_loop, daemon=True)
         self.recognition_thread.start()
-
+        
+        # Start the video update
         self.update_video()
+        
+        # Ensure proper layout after window appears
+        self.master.update_idletasks()
+        self.master.after(100, self.check_layout)
+
+    def check_layout(self):
+        """Verify that buttons are visible and adjust if needed"""
+        # This function helps ensure buttons remain visible
+        if not self.running:
+            return
+            
+        # Make sure button area is visible
+        if not self.button_area.winfo_ismapped():
+            print("[UI] Warning: Button area not visible, adjusting layout.")
+            self.button_area.pack(fill=tk.X, side=tk.BOTTOM)
+            self.button_area.pack_propagate(False)
+            
+        self.master.after(1000, self.check_layout)  # Check periodically
 
     def create_buttons(self, parent):
-        # Buttons will overlay at the bottom of the screen
+        # Create button frame at the bottom of button area
         button_frame = tk.Frame(parent, bg="black")
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 10))
 
+        # Define buttons
         buttons = [
             ("Add Face", self.show_add_face_keyboard),
             ("Delete Face", self.show_delete_face_keyboard),
             ("Exit", self.exit_program)
         ]
 
+        # Create each button
         for text, command in buttons:
-            btn = tk.Button(button_frame, text=text, command=command, font=('Arial', 12))
-            btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
+            btn = tk.Button(button_frame, text=text, command=command, 
+                           font=('Arial', 14), height=2)
+            btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
     def show_add_face_keyboard(self):
         """Show keyboard for adding a new face"""
@@ -152,6 +177,9 @@ class LockerAccessUI:
         """
         # Capture frame
         frame = self.camera_manager.capture_frame()
+        if frame is None:
+            messagebox.showerror("Error", "Failed to capture image. Please try again.")
+            return
 
         # Convert to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -183,18 +211,37 @@ class LockerAccessUI:
         
         :param name: Name to delete
         """
-        # TODO: Implement face deletion logic
-        pass
+        name = name.lower()
+        if name in self.face_recognizer.known_names:
+            index = self.face_recognizer.known_names.index(name)
+            self.face_recognizer.known_names.pop(index)
+            self.face_recognizer.known_encodings.pop(index)
+            self.face_recognizer.save_encodings()
+            
+            # Also remove locker assignment if it exists
+            if name in self.locker_manager.lockers:
+                del self.locker_manager.lockers[name]
+                self.locker_manager.save_lockers()
+                
+            messagebox.showinfo("Success", f"Deleted {name}")
+        else:
+            messagebox.showerror("Error", f"Name '{name}' not found")
 
     def exit_program(self):
         """Exit the application"""
         if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
             self.running = False
-            self.camera_manager.stop()
-            self.locker_manager.cleanup()
+            if self.camera_manager:
+                self.camera_manager.stop()
+            if self.locker_manager:
+                self.locker_manager.cleanup()
             self.master.quit()
 
     def update_video(self):
+        """Update the video display with the current camera frame"""
+        if not self.running:
+            return
+            
         if not self.camera_manager or not self.camera_manager.picam2:
             self.status_var.set("❌ Camera not available.")
             self.video_label.configure(image="", text="Camera Feed Unavailable", font=('Arial', 24), fg="red")
@@ -263,6 +310,7 @@ class LockerAccessUI:
         self.master.after(33, self.update_video)
 
     def run_face_recognition_loop(self):
+        """Background thread for face recognition processing"""
         if not self.camera_manager or not self.camera_manager.picam2:
             print("[UI] Camera manager not initialized. Skipping recognition loop.")
             return
@@ -283,6 +331,26 @@ class LockerAccessUI:
             if face_encodings:
                 for encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
                     name = self.face_recognizer.match_face(encoding)
+                    # Apply scale factor to compensate for resized frame
                     recognized.append((name, (top * 4, right * 4, bottom * 4, left * 4)))
+                    
+                    # Check for locker action if recognized
+                    if name != "Unknown":
+                        current_time = datetime.now()
+                        time_diff = (current_time - self.last_recognition_time).total_seconds()
+                        
+                        # Open locker if same person recognized for at least 2 seconds
+                        if time_diff > 2:
+                            success, message = self.locker_manager.open_locker(name)
+                            if success:
+                                self.status_var.set(f"✅ Welcome {name}! {message}")
+                            else:
+                                self.status_var.set(f"⚠️ {message}")
+                            
+                            self.last_recognition_time = current_time
+                        
             with self.recognition_lock:
                 self.recognized_faces = recognized
+                
+            # Short sleep to prevent CPU overuse
+            time.sleep(0.1)
