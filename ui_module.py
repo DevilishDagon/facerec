@@ -73,6 +73,7 @@ class VirtualKeyboard:
     def cancel(self):
         self.window.destroy()
 
+
 class LockerAccessUI:
     def __init__(self, master, camera_manager, face_recognizer, locker_manager):
         self.master = master
@@ -87,7 +88,7 @@ class LockerAccessUI:
 
         # Video Frame - Fill the entire screen
         self.video_label = tk.Label(master, bg="black")
-        self.video_label.place(x=0, y=0, relwidth=1.0, relheight=1.0)  # Fill whole screen
+        self.video_label.place(x=0, y=0, relwidth=1.0, relheight=1.0)  # Fill the whole screen
 
         # Control Frame - Overlay buttons on top of the video
         control_frame = tk.Frame(master, bg="black")
@@ -112,6 +113,7 @@ class LockerAccessUI:
         self.update_video()
 
     def create_buttons(self, parent):
+        # Buttons are overlayed on the bottom of the screen (not part of the video area)
         button_frame = tk.Frame(parent, bg="black")
         button_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
