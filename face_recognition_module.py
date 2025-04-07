@@ -33,7 +33,6 @@ class FaceRecognitionManager:
     
         return name
 
-    
     def load_encodings(self, encodings_file):
         """
         Load face encodings from file
@@ -51,7 +50,7 @@ class FaceRecognitionManager:
         except Exception as e:
             print(f"Error loading encodings: {e}")
             self.known_encodings, self.known_names = [], []
-    
+
     def save_encodings(self, encodings_file=ENCODINGS_FILE):
         """
         Save current face encodings to file
@@ -61,15 +60,16 @@ class FaceRecognitionManager:
         try:
             with open(encodings_file, "wb") as f:
                 pickle.dump((self.known_encodings, self.known_names), f)
+            print(f"Saved encodings: {self.known_names}")  # Debugging line
         except Exception as e:
             print(f"Error saving encodings: {e}")
-    
+
     def recognize_face(self, frame):
         """
         Recognize faces in a given frame
         
         :param frame: Input frame to detect faces
-        :return: List of recognized names
+        :return: List of recognized names and their locations
         """
         # Convert frame to RGB
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -97,7 +97,7 @@ class FaceRecognitionManager:
             recognized_names.append(name)
         
         return recognized_names, face_locations
-    
+
     def register_face(self, name, face_encoding):
         """
         Register a new face
@@ -113,4 +113,7 @@ class FaceRecognitionManager:
         name = name.lower()
         self.known_encodings.append(face_encoding)
         self.known_names.append(name)
+        
+        # After registering, save the encodings to the file
+        self.save_encodings()
         return True
