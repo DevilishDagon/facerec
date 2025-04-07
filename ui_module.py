@@ -200,9 +200,6 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)
             return
     
-        # Flip the frame horizontally
-        frame = cv2.flip(frame, 1)
-    
         # Get frame and label dimensions
         frame_height, frame_width = frame.shape[:2]
         label_width = self.video_label.winfo_width()
@@ -214,17 +211,25 @@ class LockerAccessUI:
             self.master.after(1000, self.update_video)  # Retry in 1s
             return
     
-        # Resize the frame to fit the label dimensions (stretch to fit)
+        # Resize the frame to fill the label completely, without black bars
         frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+    
+        # Flip the frame horizontally (to correct for mirrored display)
+        frame_resized = cv2.flip(frame_resized, 1)
     
         # Overlay face recognition results on the resized frame
         with self.recognition_lock:
             recognized = list(self.recognized_faces)
     
         for name, (top, right, bottom, left) in recognized:
+            # Adjust coordinates after the flip
+            flipped_left = label_width - right
+            flipped_right = label_width - left
+    
+            # Draw rectangles and put text for face recognition
             color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
-            cv2.rectangle(frame_resized, (left, top), (right, bottom), color, 2)
-            cv2.putText(frame_resized, name, (left, top - 10), 
+            cv2.rectangle(frame_resized, (flipped_left, top), (flipped_right, bottom), color, 2)
+            cv2.putText(frame_resized, name, (flipped_left, top - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
     
         # Convert frame to ImageTk format for display in the UI
@@ -237,6 +242,7 @@ class LockerAccessUI:
     
         # Schedule the next update (~30 FPS)
         self.master.after(33, self.update_video)
+
 
 
 
