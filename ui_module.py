@@ -84,8 +84,8 @@ class LockerAccessUI:
         master.geometry("800x480")
         master.configure(bg="black")
         
-        # Constants
-        self.BUTTON_HEIGHT = 100  # Height in pixels for the button area
+        # Constants for button area - now smaller since no status bar
+        self.BUTTON_HEIGHT = 60  # Reduced height (was 100)
         
         # Use grid instead of pack for better layout control
         master.grid_rowconfigure(0, weight=1)  # Video area expands
@@ -98,23 +98,16 @@ class LockerAccessUI:
         
         # Create the video label with an initial welcome message
         self.video_label = tk.Label(self.video_frame, bg="black", 
-                                     text="Starting camera...", fg="white",
-                                     font=('Arial', 24))
+                                    text="Starting camera...", fg="white",
+                                    font=('Arial', 24))
         self.video_label.pack(fill=tk.BOTH, expand=True)
         
-        # Create button area with fixed height
+        # Create button area with fixed height - no status bar
         self.button_area = tk.Frame(master, bg="black", height=self.BUTTON_HEIGHT)
         self.button_area.grid(row=1, column=0, sticky="ew")
         self.button_area.grid_propagate(False)  # Prevent this frame from resizing
         
-        # Status label inside button area
-        self.status_var = tk.StringVar()
-        self.status_var.set("System initializing...")
-        self.status_label = tk.Label(self.button_area, textvariable=self.status_var,
-                               font=('Arial', 14), bg="black", fg="white")
-        self.status_label.pack(side=tk.TOP, fill=tk.X, pady=(5, 0))
-        
-        # Create buttons
+        # Create buttons directly in button area (no status label)
         self.create_buttons(self.button_area)
         
         # Initialize recognition variables
@@ -124,16 +117,17 @@ class LockerAccessUI:
         self.running = True
         self.ui_initialized = False
         
+        # Still need status var for internal messages (not displayed)
+        self.status_var = tk.StringVar()
+        
         # Pre-render a placeholder image for the UI
         self.placeholder_frame = self.create_placeholder_frame(800, 380)
         
         # Check camera initialization
         try:
             if not self.camera_manager or not self.camera_manager.picam2:
-                self.status_var.set("❌ Camera initialization failed")
                 print("[UI] Camera initialization failed")
         except Exception as e:
-            self.status_var.set(f"❌ Camera error: {str(e)[:50]}")
             print(f"[UI] Camera error: {str(e)}")
         
         # Update UI immediately
@@ -164,7 +158,7 @@ class LockerAccessUI:
     def create_buttons(self, parent):
         # Create button frame at the bottom of button area
         button_frame = tk.Frame(parent, bg="black")
-        button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=(0, 10))
+        button_frame.pack(fill=tk.BOTH, expand=True)  # Fill the entire button area
 
         # Define buttons
         buttons = [
@@ -176,7 +170,7 @@ class LockerAccessUI:
         # Create each button
         for text, command in buttons:
             btn = tk.Button(button_frame, text=text, command=command, 
-                           font=('Arial', 14), height=2)
+                           font=('Arial', 14), height=1)  # Height reduced
             btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
     def show_add_face_keyboard(self):
@@ -288,7 +282,7 @@ class LockerAccessUI:
                 imgtk = ImageTk.PhotoImage(image=img)
                 self.video_label.imgtk = imgtk
                 self.video_label.configure(image=imgtk)
-                self.status_var.set("❌ Camera not available.")
+                print("[UI] Camera not available")
                 self.master.after(1000, self.update_video)  # Retry in 1s
                 return
 
@@ -300,7 +294,7 @@ class LockerAccessUI:
                 imgtk = ImageTk.PhotoImage(image=img)
                 self.video_label.imgtk = imgtk
                 self.video_label.configure(image=imgtk)
-                self.status_var.set("⚠️ Failed to capture frame.")
+                print("[UI] Failed to capture frame")
                 self.master.after(1000, self.update_video)
                 return
 
@@ -323,14 +317,13 @@ class LockerAccessUI:
                 self.video_label.configure(image=imgtk)
                 
                 # Try again soon
-                self.status_var.set("Starting camera...")
                 self.master.after(100, self.update_video)
                 return
                 
             # UI is initialized
             if not self.ui_initialized:
                 self.ui_initialized = True
-                self.status_var.set("System ready")
+                print("[UI] System ready")
 
             # Resize the frame to fill the label completely, without black bars
             frame_resized = cv2.resize(frame, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
@@ -376,7 +369,6 @@ class LockerAccessUI:
             
         except Exception as e:
             print(f"[UI] Error in update_video: {str(e)}")
-            self.status_var.set(f"⚠️ Display error: {str(e)[:50]}")
             
             # Show a placeholder image to avoid complete black screen
             try:
@@ -429,9 +421,9 @@ class LockerAccessUI:
                             if time_diff > 2:
                                 success, message = self.locker_manager.open_locker(name)
                                 if success:
-                                    self.status_var.set(f"✅ Welcome {name}! {message}")
+                                    print(f"[UI] Welcome {name}! {message}")
                                 else:
-                                    self.status_var.set(f"⚠️ {message}")
+                                    print(f"[UI] {message}")
                                 
                                 self.last_recognition_time = current_time
                             
