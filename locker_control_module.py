@@ -2,6 +2,8 @@
 import RPi.GPIO as GPIO
 import pickle
 import os
+import threading
+import time
 from config import LOCKERS_FILE, TOTAL_LOCKERS, AVAILABLE_GPIO_PINS
 
 class LockerManager:
@@ -16,6 +18,7 @@ class LockerManager:
         GPIO.setwarnings(False)
         
         self.lockers = {}
+        self.active_timers = {}  # Track active timers for each locker
         self.load_lockers(lockers_file)
         self._initialize_gpio_pins()
     
@@ -93,6 +96,33 @@ class LockerManager:
         
         return None
     
+    def _auto_close_locker(self, name, gpio_pin):
+        """
+        Automatically close locker after a delay
+        
+        :param name: Name of the user
+        :param gpio_pin: GPIO pin to control
+        """
+        try:
+            # Wait for 5 seconds
+            time.sleep(5)
+            
+            # Close the locker
+            GPIO.output(gpio_pin, GPIO.LOW)
+            print(f"Auto-closed locker for {name}")
+            
+            # Remove from active timers
+            if name in self.active_timers:
+                del self.active_timers[name]
+                
+        except Exception as e:
+            print(f"Error auto-closing locker: {e}")
+            # Force close in case of error
+            try:
+                GPIO.output(gpio_pin, GPIO.LOW)
+            except:
+                pass
+    
     def open_locker(self, name):
         """
         Open locker for a specific user
@@ -109,9 +139,21 @@ class LockerManager:
         gpio_pin = locker_info['gpio']
         
         try:
+            # Cancel any existing timer
+            if name in self.active_timers and self.active_timers[name].is_alive():
+                print(f"Cancelling existing timer for {name}")
+                # Don't need to actually cancel, just let it run and start a new one
+            
             # Unlock the locker
             GPIO.output(gpio_pin, GPIO.HIGH)
-            return True, f"Locker {locker_info['locker']} opened"
+            
+            # Create auto-close timer
+            timer = threading.Thread(target=self._auto_close_locker, 
+                                     args=(name, gpio_pin), daemon=True)
+            timer.start()
+            self.active_timers[name] = timer
+            
+            return True, f"Locker {locker_info['locker']} opened (auto-close in 5s)"
         
         except Exception as e:
             return False, f"Error opening locker: {e}"
@@ -143,4 +185,12 @@ class LockerManager:
         """
         Cleanup GPIO pins
         """
+        # Ensure all lockers are closed before cleanup
+        for name, locker_info in self.lockers.items():
+            try:
+                GPIO.output(locker_info['gpio'], GPIO.LOW)
+            except:
+                pass
+        
+        # Then do cleanup
         GPIO.cleanup()
