@@ -1,3 +1,4 @@
+# ui_module.py
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -5,11 +6,9 @@ import time
 import cv2
 import threading
 import face_recognition
-import face_recognition_module
+import numpy as np
+import traceback
 from datetime import datetime
-import numpy as np  # Added missing numpy import
-
-print("🧠 UI Module - Running version from April 7, 2025")
 
 class VirtualKeyboard:
     def __init__(self, master, callback):
@@ -84,8 +83,8 @@ class LockerAccessUI:
         master.geometry("800x480")
         master.configure(bg="black")
         
-        # Constants for button area - now smaller since no status bar
-        self.BUTTON_HEIGHT = 60  # Reduced height (was 100)
+        # Constants for button area
+        self.BUTTON_HEIGHT = 60
         
         # Use grid instead of pack for better layout control
         master.grid_rowconfigure(0, weight=1)  # Video area expands
@@ -102,12 +101,12 @@ class LockerAccessUI:
                                     font=('Arial', 24))
         self.video_label.pack(fill=tk.BOTH, expand=True)
         
-        # Create button area with fixed height - no status bar
+        # Create button area with fixed height
         self.button_area = tk.Frame(master, bg="black", height=self.BUTTON_HEIGHT)
         self.button_area.grid(row=1, column=0, sticky="ew")
         self.button_area.grid_propagate(False)  # Prevent this frame from resizing
         
-        # Create buttons directly in button area (no status label)
+        # Create buttons directly in button area
         self.create_buttons(self.button_area)
         
         # Initialize recognition variables
@@ -116,8 +115,9 @@ class LockerAccessUI:
         self.last_recognition_time = datetime.now()
         self.running = True
         self.ui_initialized = False
+        self.registration_active = False
         
-        # Still need status var for internal messages (not displayed)
+        # Status var for internal messages
         self.status_var = tk.StringVar()
         
         # Pre-render a placeholder image for the UI
@@ -170,7 +170,7 @@ class LockerAccessUI:
         # Create each button
         for text, command in buttons:
             btn = tk.Button(button_frame, text=text, command=command, 
-                           font=('Arial', 14), height=1)  # Height reduced
+                           font=('Arial', 14), height=1)
             btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
     def show_add_face_keyboard(self):
@@ -180,6 +180,7 @@ class LockerAccessUI:
         except Exception as e:
             messagebox.showerror("Error", f"Could not open keyboard: {str(e)}")
             print(f"[UI] Keyboard error: {str(e)}")
+            traceback.print_exc()
 
     def show_delete_face_keyboard(self):
         """Show keyboard for deleting a face"""
@@ -188,60 +189,87 @@ class LockerAccessUI:
         except Exception as e:
             messagebox.showerror("Error", f"Could not open keyboard: {str(e)}")
             print(f"[UI] Keyboard error: {str(e)}")
+            traceback.print_exc()
 
     def register_face(self, name):
-    """
-    Register a new face
-    
-    :param name: Name to register
-    """
-    try:
-        # Pause recognition thread temporarily for thread safety
-        self.running = False
-        time.sleep(0.5)  # Give recognition thread time to stop
+        """
+        Register a new face
         
-        # Capture frame
-        frame = self.camera_manager.capture_frame()
-        if frame is None:
-            messagebox.showerror("Error", "Failed to capture image. Please try again.")
-            self.running = True  # Resume recognition
-            return
-
-        # Convert to RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Detect faces
-        face_locations = face_recognition.face_locations(rgb_frame)
-        if not face_locations:
-            messagebox.showerror("Error", "No face detected. Try again.")
-            self.running = True  # Resume recognition
+        :param name: Name to register
+        """
+        # Prevent multiple registration attempts at once
+        if self.registration_active:
+            messagebox.showerror("Error", "Registration already in progress")
             return
             
-        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
-        if not face_encodings:
-            messagebox.showerror("Error", "Could not encode face. Try again with better lighting.")
-            self.running = True  # Resume recognition
-            return
+        self.registration_active = True
+        try:
+            # Pause recognition thread temporarily
+            original_running_state = self.running
+            self.running = False
+            time.sleep(0.5)  # Give recognition thread time to stop
+            
+            # Capture frame with full resolution
+            frame = self.camera_manager.capture_frame()
+            if frame is None:
+                messagebox.showerror("Error", "Failed to capture image. Please try again.")
+                return
 
-        # Register first detected face
-        if self.face_recognizer.register_face(name, face_encodings[0]):
-            # Assign locker
-            locker = self.locker_manager.assign_locker(name)
-            if locker:
-                messagebox.showinfo("Success",
+            # Convert to RGB
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # Detect faces
+            face_locations = face_recognition.face_locations(rgb_frame)
+            
+            if not face_locations:
+                messagebox.showerror("Error", "No face detected. Try again.")
+                return
+                
+            # Find largest face (closest to camera)
+            largest_area = 0
+            largest_idx = 0
+            
+            for i, (top, right, bottom, left) in enumerate(face_locations):
+                area = (bottom - top) * (right - left)
+                if area > largest_area:
+                    largest_area = area
+                    largest_idx = i
+            
+            best_location = face_locations[largest_idx]
+            
+            # Generate face encoding
+            face_encodings = face_recognition.face_encodings(rgb_frame, [best_location])
+            
+            if not face_encodings:
+                messagebox.showerror("Error", "Could not encode face. Try again with better lighting.")
+                return
+
+            # Register first detected face
+            name = name.strip().lower()
+            if not name:
+                messagebox.showerror("Error", "Invalid name")
+                return
+                
+            if self.face_recognizer.register_face(name, face_encodings[0]):
+                # Assign locker
+                locker = self.locker_manager.assign_locker(name)
+                if locker:
+                    messagebox.showinfo("Success",
                                      f"Registered {name} - Locker #{locker['locker']}")
+                else:
+                    messagebox.showerror("Error", "Could not assign locker")
             else:
-                messagebox.showerror("Error", "Could not assign locker")
-        else:
-            messagebox.showerror("Error", "Face already registered")
-    except Exception as e:
-        messagebox.showerror("Error", f"Registration failed: {str(e)}")
-        print(f"[UI] Registration error: {str(e)}")
-        # Log the full error with traceback
-        traceback.print_exc()
-    finally:
-        # Always resume recognition thread
-        self.running = True
+                messagebox.showerror("Error", "Face already registered or registration failed")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Registration failed: {str(e)}")
+            print(f"[UI] Registration error: {str(e)}")
+            traceback.print_exc()
+            
+        finally:
+            # Always resume recognition thread with original state
+            self.running = original_running_state
+            self.registration_active = False
 
     def delete_face(self, name):
         """
@@ -250,7 +278,11 @@ class LockerAccessUI:
         :param name: Name to delete
         """
         try:
-            name = name.lower()
+            name = name.lower().strip()
+            if not name:
+                messagebox.showerror("Error", "Invalid name")
+                return
+                
             if name in self.face_recognizer.known_names:
                 index = self.face_recognizer.known_names.index(name)
                 self.face_recognizer.known_names.pop(index)
@@ -268,6 +300,7 @@ class LockerAccessUI:
         except Exception as e:
             messagebox.showerror("Error", f"Deletion failed: {str(e)}")
             print(f"[UI] Deletion error: {str(e)}")
+            traceback.print_exc()
 
     def exit_program(self):
         """Exit the application"""
@@ -282,6 +315,7 @@ class LockerAccessUI:
                 self.master.after(100, self.master.destroy)
         except Exception as e:
             print(f"[UI] Error during shutdown: {str(e)}")
+            traceback.print_exc()
             self.master.destroy()
 
     def update_video(self):
@@ -371,7 +405,7 @@ class LockerAccessUI:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
             # Convert frame to ImageTk format for display in the UI
-            img = Image.fromarray(frame_resized)
+            img = Image.fromarray(cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB))
             imgtk = ImageTk.PhotoImage(image=img)
 
             # Update the video label with the new frame
@@ -383,6 +417,7 @@ class LockerAccessUI:
             
         except Exception as e:
             print(f"[UI] Error in update_video: {str(e)}")
+            traceback.print_exc()
             
             # Show a placeholder image to avoid complete black screen
             try:
@@ -446,6 +481,7 @@ class LockerAccessUI:
                     
             except Exception as e:
                 print(f"[UI] Error in face recognition loop: {str(e)}")
+                traceback.print_exc()
                 time.sleep(1)  # Wait a bit before trying again
                 
             # Short sleep to prevent CPU overuse
