@@ -436,13 +436,18 @@ class LockerAccessUI:
         """Background thread for face recognition processing"""
         print("[UI] Starting face recognition thread")
         
+        # Keep track of recent recognitions and when they were processed
+        recent_recognitions = {}
+        # Minimum time between opening the same locker (seconds)
+        min_reopen_time = 10
+        
         while self.running:
             try:
                 if not self.camera_manager or not self.camera_manager.picam2:
                     print("[UI] Camera manager not initialized. Waiting...")
                     time.sleep(1)
                     continue
-
+    
                 frame = self.camera_manager.capture_frame(resize_factor=0.25)
                 if frame is None:
                     time.sleep(0.1)
@@ -464,17 +469,32 @@ class LockerAccessUI:
                         # Check for locker action if recognized
                         if name != "Unknown":
                             current_time = datetime.now()
-                            time_diff = (current_time - self.last_recognition_time).total_seconds()
                             
-                            # Open locker if same person recognized for at least 2 seconds
-                            if time_diff > 2:
+                            # Check if we've seen this person recently
+                            if name in recent_recognitions:
+                                last_action_time = recent_recognitions[name]
+                                time_diff = (current_time - last_action_time).total_seconds()
+                                
+                                # Only open locker if sufficient time has passed since last opening
+                                if time_diff > min_reopen_time:
+                                    success, message = self.locker_manager.open_locker(name)
+                                    if success:
+                                        print(f"[UI] Welcome {name}! {message}")
+                                        # Update last action time
+                                        recent_recognitions[name] = current_time
+                                    else:
+                                        print(f"[UI] {message}")
+                            else:
+                                # First time seeing this person, open their locker
                                 success, message = self.locker_manager.open_locker(name)
                                 if success:
                                     print(f"[UI] Welcome {name}! {message}")
+                                    # Store when we opened their locker
+                                    recent_recognitions[name] = current_time
                                 else:
                                     print(f"[UI] {message}")
-                                
-                                self.last_recognition_time = current_time
+                            
+                            self.last_recognition_time = current_time
                             
                 with self.recognition_lock:
                     self.recognized_faces = recognized
