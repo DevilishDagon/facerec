@@ -190,44 +190,58 @@ class LockerAccessUI:
             print(f"[UI] Keyboard error: {str(e)}")
 
     def register_face(self, name):
-        """
-        Register a new face
+    """
+    Register a new face
+    
+    :param name: Name to register
+    """
+    try:
+        # Pause recognition thread temporarily for thread safety
+        self.running = False
+        time.sleep(0.5)  # Give recognition thread time to stop
         
-        :param name: Name to register
-        """
-        try:
-            # Capture frame
-            frame = self.camera_manager.capture_frame()
-            if frame is None:
-                messagebox.showerror("Error", "Failed to capture image. Please try again.")
-                return
+        # Capture frame
+        frame = self.camera_manager.capture_frame()
+        if frame is None:
+            messagebox.showerror("Error", "Failed to capture image. Please try again.")
+            self.running = True  # Resume recognition
+            return
 
-            # Convert to RGB
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Convert to RGB
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Detect faces
-            face_locations = face_recognition.face_locations(rgb_frame)
-            face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+        # Detect faces
+        face_locations = face_recognition.face_locations(rgb_frame)
+        if not face_locations:
+            messagebox.showerror("Error", "No face detected. Try again.")
+            self.running = True  # Resume recognition
+            return
+            
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+        if not face_encodings:
+            messagebox.showerror("Error", "Could not encode face. Try again with better lighting.")
+            self.running = True  # Resume recognition
+            return
 
-            if not face_locations:
-                messagebox.showerror("Error", "No face detected. Try again.")
-                return
-
-            # Register first detected face
-            if self.face_recognizer.register_face(name, face_encodings[0]):
-                # Assign locker
-                locker = self.locker_manager.assign_locker(name)
-                if locker:
-                    messagebox.showinfo("Success",
-                                         f"Registered {name} - Locker #{locker['locker']}")
-                    self.face_recognizer.save_encodings()
-                else:
-                    messagebox.showerror("Error", "Could not assign locker")
+        # Register first detected face
+        if self.face_recognizer.register_face(name, face_encodings[0]):
+            # Assign locker
+            locker = self.locker_manager.assign_locker(name)
+            if locker:
+                messagebox.showinfo("Success",
+                                     f"Registered {name} - Locker #{locker['locker']}")
             else:
-                messagebox.showerror("Error", "Face already registered")
-        except Exception as e:
-            messagebox.showerror("Error", f"Registration failed: {str(e)}")
-            print(f"[UI] Registration error: {str(e)}")
+                messagebox.showerror("Error", "Could not assign locker")
+        else:
+            messagebox.showerror("Error", "Face already registered")
+    except Exception as e:
+        messagebox.showerror("Error", f"Registration failed: {str(e)}")
+        print(f"[UI] Registration error: {str(e)}")
+        # Log the full error with traceback
+        traceback.print_exc()
+    finally:
+        # Always resume recognition thread
+        self.running = True
 
     def delete_face(self, name):
         """
