@@ -1,4 +1,4 @@
-# ui_module.py - Modified with threading fix for face registration
+# ui_module.py - Modified with complete threading fix and cleanup
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -117,11 +117,26 @@ class LockerAccessUI:
         self.ui_initialized = False
         self.registration_active = False
         
+        # Create a threading event for controlling the recognition thread
+        self.recognition_paused = threading.Event()
+        self.recognition_paused.clear()  # Not paused initially
+        
         # Status var for internal messages
         self.status_var = tk.StringVar()
         
         # Pre-render a placeholder image for the UI
         self.placeholder_frame = self.create_placeholder_frame(800, 380)
+        
+        # Create processing label
+        self.processing_label = tk.Label(
+            self.video_frame,
+            text="",
+            font=('Arial', 18),
+            bg='black',
+            fg='white',
+            bd=2,
+            relief=tk.RAISED
+        )
         
         # Check camera initialization
         try:
@@ -202,7 +217,17 @@ class LockerAccessUI:
             messagebox.showerror("Error", "Registration already in progress")
             return
             
+        # Validate input before proceeding
+        name = name.strip().lower()
+        if not name:
+            messagebox.showerror("Error", "Invalid name")
+            return
+        
+        # Set flag to prevent multiple registrations
         self.registration_active = True
+        
+        # Pause the recognition thread
+        self.pause_recognition()
         
         # Show a processing message
         self.show_processing_message("Processing registration...")
@@ -215,13 +240,22 @@ class LockerAccessUI:
         )
         registration_thread.start()
     
+    def pause_recognition(self):
+        """Pause the face recognition thread"""
+        self.recognition_paused.set()
+        print("[UI] Recognition paused")
+    
+    def resume_recognition(self):
+        """Resume the face recognition thread"""
+        self.recognition_paused.clear()
+        print("[UI] Recognition resumed")
+    
     def _register_face_worker(self, name):
         """Worker thread for face registration"""
         try:
-            # Pause recognition thread temporarily
-            original_running_state = self.running
-            self.running = False
-            time.sleep(0.5)  # Give recognition thread time to stop
+            # Ensure recognition is paused
+            self.pause_recognition()
+            time.sleep(0.5)  # Give recognition thread time to pause
             
             # Capture frame with full resolution
             frame = self.camera_manager.capture_frame()
@@ -258,12 +292,7 @@ class LockerAccessUI:
                 self.master.after(0, lambda: messagebox.showerror("Error", "Could not encode face. Try again with better lighting."))
                 return
 
-            # Register first detected face
-            name = name.strip().lower()
-            if not name:
-                self.master.after(0, lambda: messagebox.showerror("Error", "Invalid name"))
-                return
-                
+            # Register the face
             if self.face_recognizer.register_face(name, face_encodings[0]):
                 # Assign locker
                 locker = self.locker_manager.assign_locker(name)
@@ -281,11 +310,22 @@ class LockerAccessUI:
             traceback.print_exc()
             
         finally:
-            # Always resume recognition thread with original state
-            self.running = original_running_state
-            self.registration_active = False
-            # Clear the processing message
-            self.clear_processing_message()
+            # Schedule cleanup to run on the main thread
+            self.master.after(0, self._finish_registration)
+    
+    def _finish_registration(self):
+        """Clean up after registration (runs on main thread)"""
+        # Clear processing message
+        self.clear_processing_message()
+        
+        # Resume recognition
+        self.resume_recognition()
+        
+        # Reset registration flag
+        self.registration_active = False
+        
+        # Force an update of the video display
+        self.update_video()
     
     def show_processing_message(self, message):
         """Show a processing message on the UI"""
@@ -294,29 +334,13 @@ class LockerAccessUI:
     
     def _show_processing_message_ui(self, message):
         """Actually update the UI with processing message (must be called from main thread)"""
-        # Create processing label if it doesn't exist
-        if not hasattr(self, 'processing_label'):
-            self.processing_label = tk.Label(
-                self.video_frame,
-                text=message,
-                font=('Arial', 18),
-                bg='black',
-                fg='white',
-                bd=2,
-                relief=tk.RAISED
-            )
-            # Position at center bottom of video frame
-            self.processing_label.place(
-                relx=0.5, rely=0.9,
-                anchor=tk.CENTER
-            )
-        else:
-            # Update existing label
-            self.processing_label.config(text=message)
-            self.processing_label.place(
-                relx=0.5, rely=0.9,
-                anchor=tk.CENTER
-            )
+        # Update the processing label
+        self.processing_label.config(text=message)
+        # Position at center bottom of video frame
+        self.processing_label.place(
+            relx=0.5, rely=0.9,
+            anchor=tk.CENTER
+        )
     
     def clear_processing_message(self):
         """Remove the processing message from UI"""
@@ -325,8 +349,7 @@ class LockerAccessUI:
     
     def _clear_processing_message_ui(self):
         """Actually clear the processing message (must be called from main thread)"""
-        if hasattr(self, 'processing_label'):
-            self.processing_label.place_forget()
+        self.processing_label.place_forget()
 
     def delete_face(self, name):
         """
@@ -500,6 +523,11 @@ class LockerAccessUI:
         
         while self.running:
             try:
+                # Check if recognition is paused
+                if self.recognition_paused.is_set():
+                    time.sleep(0.1)  # Sleep briefly and check again
+                    continue
+                    
                 if not self.camera_manager or not self.camera_manager.picam2:
                     print("[UI] Camera manager not initialized. Waiting...")
                     time.sleep(1)
