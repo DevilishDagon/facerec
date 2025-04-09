@@ -21,4 +21,4 @@ LOCKERS_FILE = "lockers.pkl"
 os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
 
 # Available GPIO pins
-AVAILABLE_GPIO_PINS = [3, 6]
+AVAILABLE_GPIO_PINS = [3, 6, 17]
