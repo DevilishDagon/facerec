@@ -1,4 +1,4 @@
-# ui_module.py - Modified with complete threading fix and cleanup
+# ui_module.py - Modified with integrated keyboard
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -13,23 +13,36 @@ import gc  # Add garbage collection
 import random  # Add random module for periodic GC
 
 class VirtualKeyboard:
-    def __init__(self, master, callback):
+    def __init__(self, parent, master, callback, action_type="add"):
         """
-        Initialize virtual keyboard
+        Initialize virtual keyboard integrated into the main window
         
-        :param master: Parent tkinter window
+        :param parent: Parent frame to place keyboard in
+        :param master: Master window for reference
         :param callback: Function to call with keyboard input
+        :param action_type: Type of action ("add" or "delete")
         """
-        self.window = tk.Toplevel(master)
-        self.window.title("Virtual Keyboard")
-        self.window.geometry("600x400")
-        
+        self.parent = parent
+        self.master = master
         self.callback = callback
+        self.action_type = action_type
+        
+        # Create a frame for the keyboard
+        self.frame = tk.Frame(parent, bg="black", bd=2, relief=tk.RAISED)
+        self.frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER, width=600, height=300)
+        
         self.input_var = tk.StringVar()
         
-        self.input_entry = tk.Entry(self.window, textvariable=self.input_var, font=('Arial', 16))
-        self.input_entry.pack(pady=20)
+        # Title for the keyboard based on action
+        title_text = "Add New Face" if action_type == "add" else "Delete Face"
+        title_label = tk.Label(self.frame, text=title_text, font=('Arial', 18), bg="black", fg="white")
+        title_label.pack(pady=5)
         
+        # Input field
+        self.input_entry = tk.Entry(self.frame, textvariable=self.input_var, font=('Arial', 16), width=20)
+        self.input_entry.pack(pady=10)
+        
+        # Keyboard layout
         keyboard_layout = [
             '1234567890',
             'QWERTYUIOP',
@@ -37,23 +50,36 @@ class VirtualKeyboard:
             'ZXCVBNM'
         ]
         
+        # Create keyboard buttons
         for row in keyboard_layout:
-            frame = tk.Frame(self.window)
-            frame.pack()
+            key_frame = tk.Frame(self.frame, bg="black")
+            key_frame.pack(pady=2)
             for char in row:
-                btn = tk.Button(frame, text=char, width=3, 
-                                command=lambda c=char.lower(): self.add_char(c))
-                btn.pack(side=tk.LEFT)
+                btn = tk.Button(key_frame, text=char, width=3, 
+                              command=lambda c=char.lower(): self.add_char(c),
+                              font=('Arial', 12))
+                btn.pack(side=tk.LEFT, padx=2)
         
         # Special buttons
-        special_frame = tk.Frame(self.window)
+        special_frame = tk.Frame(self.frame, bg="black")
         special_frame.pack(pady=10)
         
-        tk.Button(special_frame, text="Space", command=lambda: self.add_char(" ")).pack(side=tk.LEFT)
-        tk.Button(special_frame, text="Backspace", command=self.backspace).pack(side=tk.LEFT)
-        tk.Button(special_frame, text="Enter", command=self.confirm).pack(side=tk.LEFT)
-        tk.Button(special_frame, text="Cancel", command=self.cancel).pack(side=tk.LEFT)
-    
+        # Add space, backspace, etc.
+        tk.Button(special_frame, text="Space", command=lambda: self.add_char(" "), 
+                 font=('Arial', 12), width=8).pack(side=tk.LEFT, padx=5)
+        tk.Button(special_frame, text="Backspace", command=self.backspace, 
+                 font=('Arial', 12), width=8).pack(side=tk.LEFT, padx=5)
+        
+        # Action buttons frame
+        action_frame = tk.Frame(self.frame, bg="black")
+        action_frame.pack(pady=5)
+        
+        # Confirm and cancel buttons
+        tk.Button(action_frame, text="Confirm", command=self.confirm, 
+                 font=('Arial', 12), width=8, bg="green", fg="white").pack(side=tk.LEFT, padx=10)
+        tk.Button(action_frame, text="Cancel", command=self.close, 
+                 font=('Arial', 12), width=8, bg="red", fg="white").pack(side=tk.LEFT, padx=10)
+
     def add_char(self, char):
         current = self.input_var.get()
         self.input_var.set(current + char)
@@ -66,10 +92,10 @@ class VirtualKeyboard:
         name = self.input_var.get().strip()
         if name:
             self.callback(name)
-        self.window.destroy()
+        self.close()
     
-    def cancel(self):
-        self.window.destroy()
+    def close(self):
+        self.frame.destroy()
 
 
 class LockerAccessUI:
@@ -118,6 +144,7 @@ class LockerAccessUI:
         self.running = True
         self.ui_initialized = False
         self.registration_active = False
+        self.keyboard_active = False
         
         # Create a threading event for controlling the recognition thread
         self.recognition_paused = threading.Event()
@@ -191,22 +218,38 @@ class LockerAccessUI:
             btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
 
     def show_add_face_keyboard(self):
-        """Show keyboard for adding a new face"""
-        try:
-            VirtualKeyboard(self.master, self.register_face)
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not open keyboard: {str(e)}")
-            print(f"[UI] Keyboard error: {str(e)}")
-            traceback.print_exc()
+        """Show keyboard for adding a new face in the main window"""
+        if self.keyboard_active:
+            return  # Prevent multiple keyboards
+            
+        self.keyboard_active = True
+        # Pause recognition during keyboard interaction
+        self.pause_recognition()
+        
+        # Create keyboard in the video frame
+        self.current_keyboard = VirtualKeyboard(
+            self.master,  # Use master so keyboard appears over everything
+            self.master, 
+            self.register_face,
+            action_type="add"
+        )
 
     def show_delete_face_keyboard(self):
-        """Show keyboard for deleting a face"""
-        try:
-            VirtualKeyboard(self.master, self.delete_face)
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not open keyboard: {str(e)}")
-            print(f"[UI] Keyboard error: {str(e)}")
-            traceback.print_exc()
+        """Show keyboard for deleting a face in the main window"""
+        if self.keyboard_active:
+            return  # Prevent multiple keyboards
+            
+        self.keyboard_active = True
+        # Pause recognition during keyboard interaction
+        self.pause_recognition()
+        
+        # Create keyboard in the video frame
+        self.current_keyboard = VirtualKeyboard(
+            self.master,  # Use master so keyboard appears over everything
+            self.master, 
+            self.delete_face,
+            action_type="delete"
+        )
 
     def register_face(self, name):
         """
@@ -214,22 +257,28 @@ class LockerAccessUI:
         
         :param name: Name to register
         """
+        # Reset keyboard flag
+        self.keyboard_active = False
+        
         # Prevent multiple registration attempts at once
         if self.registration_active:
             messagebox.showerror("Error", "Registration already in progress")
+            # Resume recognition if not proceeding with registration
+            self.resume_recognition()
             return
             
         # Validate input before proceeding
         name = name.strip().lower()
         if not name:
             messagebox.showerror("Error", "Invalid name")
+            # Resume recognition if not proceeding with registration
+            self.resume_recognition()
             return
         
         # Set flag to prevent multiple registrations
         self.registration_active = True
         
-        # Pause the recognition thread
-        self.pause_recognition()
+        # Pause the recognition thread (already paused from keyboard)
         
         # Show a processing message
         self.show_processing_message("Processing registration...")
@@ -375,10 +424,15 @@ class LockerAccessUI:
         
         :param name: Name to delete
         """
+        # Reset keyboard flag
+        self.keyboard_active = False
+        
         try:
             name = name.lower().strip()
             if not name:
                 messagebox.showerror("Error", "Invalid name")
+                # Resume recognition
+                self.resume_recognition()
                 return
                 
             if name in self.face_recognizer.known_names:
@@ -395,10 +449,14 @@ class LockerAccessUI:
                 messagebox.showinfo("Success", f"Deleted {name}")
             else:
                 messagebox.showerror("Error", f"Name '{name}' not found")
+                
         except Exception as e:
             messagebox.showerror("Error", f"Deletion failed: {str(e)}")
             print(f"[UI] Deletion error: {str(e)}")
             traceback.print_exc()
+        finally:
+            # Resume recognition in any case
+            self.resume_recognition()
 
     def exit_program(self):
         """Exit the application"""
@@ -475,6 +533,18 @@ class LockerAccessUI:
 
             # Copy the frame for processing to avoid reference issues
             frame_copy = frame.copy()
+
+            # Skip frame drawing if keyboard is active
+            if self.keyboard_active:
+                # Just show the frame without recognition data
+                frame_resized = cv2.resize(frame_copy, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
+                frame_resized = cv2.flip(frame_resized, 1)  # Flip horizontally
+                img = Image.fromarray(cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB))
+                imgtk = ImageTk.PhotoImage(image=img)
+                self.video_label.imgtk = imgtk
+                self.video_label.configure(image=imgtk)
+                self.master.after(100, self.update_video)
+                return
 
             # Resize the frame to fill the label completely, without black bars
             frame_resized = cv2.resize(frame_copy, (label_width, label_height), interpolation=cv2.INTER_LINEAR)
