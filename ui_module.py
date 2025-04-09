@@ -1,4 +1,4 @@
-# ui_module.py - Modified with integrated keyboard and fixed button display
+# ui_module.py - Modified with integrated keyboard
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -29,7 +29,7 @@ class VirtualKeyboard:
         
         # Create a frame for the keyboard
         self.frame = tk.Frame(parent, bg="black", bd=2, relief=tk.RAISED)
-        self.frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER, width=600, height=340)
+        self.frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER, width=600, height=300)
         
         self.input_var = tk.StringVar()
         
@@ -64,7 +64,7 @@ class VirtualKeyboard:
         special_frame = tk.Frame(self.frame, bg="black")
         special_frame.pack(pady=10)
         
-        # Add space, backspace buttons
+        # Add space, backspace, etc.
         tk.Button(special_frame, text="Space", command=lambda: self.add_char(" "), 
                  font=('Arial', 12), width=8).pack(side=tk.LEFT, padx=5)
         tk.Button(special_frame, text="Backspace", command=self.backspace, 
@@ -72,16 +72,13 @@ class VirtualKeyboard:
         
         # Action buttons frame
         action_frame = tk.Frame(self.frame, bg="black")
-        action_frame.pack(pady=10, fill=tk.X)
+        action_frame.pack(pady=5)
         
-        # Confirm and cancel buttons with clear visibility
-        confirm_btn = tk.Button(action_frame, text="Confirm", command=self.confirm, 
-                 font=('Arial', 14), width=8, bg="green", fg="white")
-        confirm_btn.pack(side=tk.LEFT, padx=10, expand=True)
-        
-        cancel_btn = tk.Button(action_frame, text="Cancel", command=self.close, 
-                 font=('Arial', 14), width=8, bg="red", fg="white")
-        cancel_btn.pack(side=tk.LEFT, padx=10, expand=True)
+        # Confirm and cancel buttons
+        tk.Button(action_frame, text="Confirm", command=self.confirm, 
+                 font=('Arial', 12), width=8, bg="green", fg="white").pack(side=tk.LEFT, padx=10)
+        tk.Button(action_frame, text="Cancel", command=self.close, 
+                 font=('Arial', 12), width=8, bg="red", fg="white").pack(side=tk.LEFT, padx=10)
 
     def add_char(self, char):
         current = self.input_var.get()
@@ -148,7 +145,6 @@ class LockerAccessUI:
         self.ui_initialized = False
         self.registration_active = False
         self.keyboard_active = False
-        self.current_keyboard = None
         
         # Create a threading event for controlling the recognition thread
         self.recognition_paused = threading.Event()
@@ -258,27 +254,36 @@ class LockerAccessUI:
     def register_face(self, name):
         """
         Register a new face
-    
+        
         :param name: Name to register
         """
+        # Reset keyboard flag
         self.keyboard_active = False
-    
+        
+        # Prevent multiple registration attempts at once
         if self.registration_active:
-            print("[DEBUG] Registration already in progress")
             messagebox.showerror("Error", "Registration already in progress")
+            # Resume recognition if not proceeding with registration
             self.resume_recognition()
             return
-    
+            
+        # Validate input before proceeding
         name = name.strip().lower()
         if not name:
-            print("[DEBUG] Invalid name input")
             messagebox.showerror("Error", "Invalid name")
+            # Resume recognition if not proceeding with registration
             self.resume_recognition()
             return
-    
+        
+        # Set flag to prevent multiple registrations
         self.registration_active = True
+        
+        # Pause the recognition thread (already paused from keyboard)
+        
+        # Show a processing message
         self.show_processing_message("Processing registration...")
-    
+        
+        # Create a thread for the registration process
         registration_thread = threading.Thread(
             target=self._register_face_worker,
             args=(name,),
@@ -299,74 +304,76 @@ class LockerAccessUI:
     def _register_face_worker(self, name):
         """Worker thread for face registration"""
         try:
-            print("[DEBUG] Starting face registration for:", name)
+            # Ensure recognition is paused
             self.pause_recognition()
-            time.sleep(0.5)
+            time.sleep(0.5)  # Give recognition thread time to pause
+            
+            # Explicitly clear any previous frames
+            # This helps prevent memory issues
             gc.collect()
-    
-            print("[DEBUG] Capturing frame...")
+            
+            # Capture frame with full resolution
             frame = self.camera_manager.capture_frame()
             if frame is None:
-                print("[ERROR] Frame capture failed.")
-                self.master.after(0, lambda: messagebox.showerror("Error", "Failed to capture image."))
+                self.master.after(0, lambda: messagebox.showerror("Error", "Failed to capture image. Please try again."))
                 return
-    
-            print("[DEBUG] Converting frame to RGB...")
+
+            # Convert to RGB
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-            print("[DEBUG] Detecting face locations...")
+
+            # Detect faces
             face_locations = face_recognition.face_locations(rgb_frame)
+            
             if not face_locations:
-                print("[ERROR] No face detected.")
                 self.master.after(0, lambda: messagebox.showerror("Error", "No face detected. Try again."))
                 return
-    
-            print(f"[DEBUG] Found {len(face_locations)} face(s)")
-            largest_idx = max(
-                range(len(face_locations)),
-                key=lambda i: (face_locations[i][2] - face_locations[i][0]) * (face_locations[i][1] - face_locations[i][3])
-            )
+                
+            # Find largest face (closest to camera)
+            largest_area = 0
+            largest_idx = 0
+            
+            for i, (top, right, bottom, left) in enumerate(face_locations):
+                area = (bottom - top) * (right - left)
+                if area > largest_area:
+                    largest_area = area
+                    largest_idx = i
+            
             best_location = face_locations[largest_idx]
-    
-            print("[DEBUG] Generating face encoding...")
+            
+            # Generate face encoding
             face_encodings = face_recognition.face_encodings(rgb_frame, [best_location])
+            
             if not face_encodings:
-                print("[ERROR] Face encoding failed.")
-                self.master.after(0, lambda: messagebox.showerror("Error", "Could not encode face. Try again."))
+                self.master.after(0, lambda: messagebox.showerror("Error", "Could not encode face. Try again with better lighting."))
                 return
-    
-            print("[DEBUG] Registering face...")
-            result = self.face_recognizer.register_face(name, face_encodings[0])
-            if result:
-                print("[DEBUG] Face registered. Assigning locker...")
-                try:
-                    locker = self.locker_manager.assign_locker(name)
-                    if locker:
-                        self.master.after(0, lambda: messagebox.showinfo("Success", f"Registered {name} - Locker #{locker['locker']}"))
-                        print("[DEBUG] Locker assigned successfully.")
-                    else:
-                        print("[ERROR] Locker assignment failed.")
-                        self.master.after(0, lambda: messagebox.showerror("Error", "Could not assign locker"))
-                except Exception as locker_error:
-                    print(f"[ERROR] Locker assignment crash: {locker_error}")
-                    traceback.print_exc()
-                    self.master.after(0, lambda: messagebox.showerror("Error", f"Locker assignment error: {locker_error}"))
+
+            # Register the face
+            if self.face_recognizer.register_face(name, face_encodings[0]):
+                # Assign locker
+                locker = self.locker_manager.assign_locker(name)
+                if locker:
+                    self.master.after(0, lambda: messagebox.showinfo("Success",
+                                     f"Registered {name} - Locker #{locker['locker']}"))
+                else:
+                    self.master.after(0, lambda: messagebox.showerror("Error", "Could not assign locker"))
             else:
-                print("[ERROR] Face already registered or registration failed.")
                 self.master.after(0, lambda: messagebox.showerror("Error", "Face already registered or registration failed"))
-    
+                
         except Exception as e:
-            print(f"[ERROR] Unexpected exception in registration: {e}")
+            self.master.after(0, lambda: messagebox.showerror("Error", f"Registration failed: {str(e)}"))
+            print(f"[UI] Registration error: {str(e)}")
             traceback.print_exc()
-            self.master.after(0, lambda: messagebox.showerror("Error", f"Registration failed: {e}"))
-    
+            
         finally:
+            # Make sure to clean up and release resources
             try:
                 del frame
                 del rgb_frame
             except:
                 pass
             gc.collect()
+            
+            # Schedule cleanup to run on the main thread
             self.master.after(0, self._finish_registration)
     
     def _finish_registration(self):
