@@ -258,36 +258,27 @@ class LockerAccessUI:
     def register_face(self, name):
         """
         Register a new face
-        
+    
         :param name: Name to register
         """
-        # Reset keyboard flag
         self.keyboard_active = False
-        
-        # Prevent multiple registration attempts at once
+    
         if self.registration_active:
+            print("[DEBUG] Registration already in progress")
             messagebox.showerror("Error", "Registration already in progress")
-            # Resume recognition if not proceeding with registration
             self.resume_recognition()
             return
-            
-        # Validate input before proceeding
+    
         name = name.strip().lower()
         if not name:
+            print("[DEBUG] Invalid name input")
             messagebox.showerror("Error", "Invalid name")
-            # Resume recognition if not proceeding with registration
             self.resume_recognition()
             return
-        
-        # Set flag to prevent multiple registrations
+    
         self.registration_active = True
-        
-        # Pause the recognition thread (already paused from keyboard)
-        
-        # Show a processing message
         self.show_processing_message("Processing registration...")
-        
-        # Create a thread for the registration process
+    
         registration_thread = threading.Thread(
             target=self._register_face_worker,
             args=(name,),
@@ -308,76 +299,74 @@ class LockerAccessUI:
     def _register_face_worker(self, name):
         """Worker thread for face registration"""
         try:
-            # Ensure recognition is paused
+            print("[DEBUG] Starting face registration for:", name)
             self.pause_recognition()
-            time.sleep(0.5)  # Give recognition thread time to pause
-            
-            # Explicitly clear any previous frames
-            # This helps prevent memory issues
+            time.sleep(0.5)
             gc.collect()
-            
-            # Capture frame with full resolution
+    
+            print("[DEBUG] Capturing frame...")
             frame = self.camera_manager.capture_frame()
             if frame is None:
-                self.master.after(0, lambda: messagebox.showerror("Error", "Failed to capture image. Please try again."))
+                print("[ERROR] Frame capture failed.")
+                self.master.after(0, lambda: messagebox.showerror("Error", "Failed to capture image."))
                 return
-
-            # Convert to RGB
+    
+            print("[DEBUG] Converting frame to RGB...")
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            # Detect faces
+    
+            print("[DEBUG] Detecting face locations...")
             face_locations = face_recognition.face_locations(rgb_frame)
-            
             if not face_locations:
+                print("[ERROR] No face detected.")
                 self.master.after(0, lambda: messagebox.showerror("Error", "No face detected. Try again."))
                 return
-                
-            # Find largest face (closest to camera)
-            largest_area = 0
-            largest_idx = 0
-            
-            for i, (top, right, bottom, left) in enumerate(face_locations):
-                area = (bottom - top) * (right - left)
-                if area > largest_area:
-                    largest_area = area
-                    largest_idx = i
-            
+    
+            print(f"[DEBUG] Found {len(face_locations)} face(s)")
+            largest_idx = max(
+                range(len(face_locations)),
+                key=lambda i: (face_locations[i][2] - face_locations[i][0]) * (face_locations[i][1] - face_locations[i][3])
+            )
             best_location = face_locations[largest_idx]
-            
-            # Generate face encoding
+    
+            print("[DEBUG] Generating face encoding...")
             face_encodings = face_recognition.face_encodings(rgb_frame, [best_location])
-            
             if not face_encodings:
-                self.master.after(0, lambda: messagebox.showerror("Error", "Could not encode face. Try again with better lighting."))
+                print("[ERROR] Face encoding failed.")
+                self.master.after(0, lambda: messagebox.showerror("Error", "Could not encode face. Try again."))
                 return
-
-            # Register the face
-            if self.face_recognizer.register_face(name, face_encodings[0]):
-                # Assign locker
-                locker = self.locker_manager.assign_locker(name)
-                if locker:
-                    self.master.after(0, lambda: messagebox.showinfo("Success",
-                                     f"Registered {name} - Locker #{locker['locker']}"))
-                else:
-                    self.master.after(0, lambda: messagebox.showerror("Error", "Could not assign locker"))
+    
+            print("[DEBUG] Registering face...")
+            result = self.face_recognizer.register_face(name, face_encodings[0])
+            if result:
+                print("[DEBUG] Face registered. Assigning locker...")
+                try:
+                    locker = self.locker_manager.assign_locker(name)
+                    if locker:
+                        self.master.after(0, lambda: messagebox.showinfo("Success", f"Registered {name} - Locker #{locker['locker']}"))
+                        print("[DEBUG] Locker assigned successfully.")
+                    else:
+                        print("[ERROR] Locker assignment failed.")
+                        self.master.after(0, lambda: messagebox.showerror("Error", "Could not assign locker"))
+                except Exception as locker_error:
+                    print(f"[ERROR] Locker assignment crash: {locker_error}")
+                    traceback.print_exc()
+                    self.master.after(0, lambda: messagebox.showerror("Error", f"Locker assignment error: {locker_error}"))
             else:
+                print("[ERROR] Face already registered or registration failed.")
                 self.master.after(0, lambda: messagebox.showerror("Error", "Face already registered or registration failed"))
-                
+    
         except Exception as e:
-            self.master.after(0, lambda: messagebox.showerror("Error", f"Registration failed: {str(e)}"))
-            print(f"[UI] Registration error: {str(e)}")
+            print(f"[ERROR] Unexpected exception in registration: {e}")
             traceback.print_exc()
-            
+            self.master.after(0, lambda: messagebox.showerror("Error", f"Registration failed: {e}"))
+    
         finally:
-            # Make sure to clean up and release resources
             try:
                 del frame
                 del rgb_frame
             except:
                 pass
             gc.collect()
-            
-            # Schedule cleanup to run on the main thread
             self.master.after(0, self._finish_registration)
     
     def _finish_registration(self):
