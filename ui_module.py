@@ -1,4 +1,4 @@
-# ui_module.py - Modified with integrated keyboard
+# ui_module.py - Modified with integrated keyboard and fixed button display
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -29,7 +29,7 @@ class VirtualKeyboard:
         
         # Create a frame for the keyboard
         self.frame = tk.Frame(parent, bg="black", bd=2, relief=tk.RAISED)
-        self.frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER, width=600, height=300)
+        self.frame.place(relx=0.5, rely=0.5, anchor=tk.CENTER, width=600, height=340)
         
         self.input_var = tk.StringVar()
         
@@ -64,7 +64,7 @@ class VirtualKeyboard:
         special_frame = tk.Frame(self.frame, bg="black")
         special_frame.pack(pady=10)
         
-        # Add space, backspace, etc.
+        # Add space, backspace buttons
         tk.Button(special_frame, text="Space", command=lambda: self.add_char(" "), 
                  font=('Arial', 12), width=8).pack(side=tk.LEFT, padx=5)
         tk.Button(special_frame, text="Backspace", command=self.backspace, 
@@ -72,13 +72,16 @@ class VirtualKeyboard:
         
         # Action buttons frame
         action_frame = tk.Frame(self.frame, bg="black")
-        action_frame.pack(pady=5)
+        action_frame.pack(pady=10, fill=tk.X)
         
-        # Confirm and cancel buttons
-        tk.Button(action_frame, text="Confirm", command=self.confirm, 
-                 font=('Arial', 12), width=8, bg="green", fg="white").pack(side=tk.LEFT, padx=10)
-        tk.Button(action_frame, text="Cancel", command=self.close, 
-                 font=('Arial', 12), width=8, bg="red", fg="white").pack(side=tk.LEFT, padx=10)
+        # Confirm and cancel buttons with clear visibility
+        confirm_btn = tk.Button(action_frame, text="Confirm", command=self.confirm, 
+                 font=('Arial', 14), width=8, bg="green", fg="white")
+        confirm_btn.pack(side=tk.LEFT, padx=10, expand=True)
+        
+        cancel_btn = tk.Button(action_frame, text="Cancel", command=self.close, 
+                 font=('Arial', 14), width=8, bg="red", fg="white")
+        cancel_btn.pack(side=tk.LEFT, padx=10, expand=True)
 
     def add_char(self, char):
         current = self.input_var.get()
@@ -145,6 +148,7 @@ class LockerAccessUI:
         self.ui_initialized = False
         self.registration_active = False
         self.keyboard_active = False
+        self.current_keyboard = None
         
         # Create a threading event for controlling the recognition thread
         self.recognition_paused = threading.Event()
