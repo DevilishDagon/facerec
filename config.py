@@ -5,7 +5,7 @@ import os
 ADMIN_NAME = "tim"  # Ensure lowercase for consistency
 THRESHOLD = 0.45  # Adjust for better accuracy
 IDLE_TIMEOUT = 60  # Reset system after 60 seconds of inactivity
-TOTAL_LOCKERS = 100  # Max locker count
+TOTAL_LOCKERS = 3  # Max locker count
 DELAY_BETWEEN_PROMPTS = 20  # Time between locker prompts
 
 # Screen resolution
