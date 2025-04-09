@@ -1,4 +1,4 @@
-# ui_module.py
+# ui_module.py - Modified with threading fix for face registration
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -203,6 +203,20 @@ class LockerAccessUI:
             return
             
         self.registration_active = True
+        
+        # Show a processing message
+        self.show_processing_message("Processing registration...")
+        
+        # Create a thread for the registration process
+        registration_thread = threading.Thread(
+            target=self._register_face_worker,
+            args=(name,),
+            daemon=True
+        )
+        registration_thread.start()
+    
+    def _register_face_worker(self, name):
+        """Worker thread for face registration"""
         try:
             # Pause recognition thread temporarily
             original_running_state = self.running
@@ -212,7 +226,7 @@ class LockerAccessUI:
             # Capture frame with full resolution
             frame = self.camera_manager.capture_frame()
             if frame is None:
-                messagebox.showerror("Error", "Failed to capture image. Please try again.")
+                self.master.after(0, lambda: messagebox.showerror("Error", "Failed to capture image. Please try again."))
                 return
 
             # Convert to RGB
@@ -222,7 +236,7 @@ class LockerAccessUI:
             face_locations = face_recognition.face_locations(rgb_frame)
             
             if not face_locations:
-                messagebox.showerror("Error", "No face detected. Try again.")
+                self.master.after(0, lambda: messagebox.showerror("Error", "No face detected. Try again."))
                 return
                 
             # Find largest face (closest to camera)
@@ -241,28 +255,28 @@ class LockerAccessUI:
             face_encodings = face_recognition.face_encodings(rgb_frame, [best_location])
             
             if not face_encodings:
-                messagebox.showerror("Error", "Could not encode face. Try again with better lighting.")
+                self.master.after(0, lambda: messagebox.showerror("Error", "Could not encode face. Try again with better lighting."))
                 return
 
             # Register first detected face
             name = name.strip().lower()
             if not name:
-                messagebox.showerror("Error", "Invalid name")
+                self.master.after(0, lambda: messagebox.showerror("Error", "Invalid name"))
                 return
                 
             if self.face_recognizer.register_face(name, face_encodings[0]):
                 # Assign locker
                 locker = self.locker_manager.assign_locker(name)
                 if locker:
-                    messagebox.showinfo("Success",
-                                     f"Registered {name} - Locker #{locker['locker']}")
+                    self.master.after(0, lambda: messagebox.showinfo("Success",
+                                     f"Registered {name} - Locker #{locker['locker']}"))
                 else:
-                    messagebox.showerror("Error", "Could not assign locker")
+                    self.master.after(0, lambda: messagebox.showerror("Error", "Could not assign locker"))
             else:
-                messagebox.showerror("Error", "Face already registered or registration failed")
+                self.master.after(0, lambda: messagebox.showerror("Error", "Face already registered or registration failed"))
                 
         except Exception as e:
-            messagebox.showerror("Error", f"Registration failed: {str(e)}")
+            self.master.after(0, lambda: messagebox.showerror("Error", f"Registration failed: {str(e)}"))
             print(f"[UI] Registration error: {str(e)}")
             traceback.print_exc()
             
@@ -270,6 +284,49 @@ class LockerAccessUI:
             # Always resume recognition thread with original state
             self.running = original_running_state
             self.registration_active = False
+            # Clear the processing message
+            self.clear_processing_message()
+    
+    def show_processing_message(self, message):
+        """Show a processing message on the UI"""
+        # Use after() to ensure thread safety with tkinter
+        self.master.after(0, lambda: self._show_processing_message_ui(message))
+    
+    def _show_processing_message_ui(self, message):
+        """Actually update the UI with processing message (must be called from main thread)"""
+        # Create processing label if it doesn't exist
+        if not hasattr(self, 'processing_label'):
+            self.processing_label = tk.Label(
+                self.video_frame,
+                text=message,
+                font=('Arial', 18),
+                bg='black',
+                fg='white',
+                bd=2,
+                relief=tk.RAISED
+            )
+            # Position at center bottom of video frame
+            self.processing_label.place(
+                relx=0.5, rely=0.9,
+                anchor=tk.CENTER
+            )
+        else:
+            # Update existing label
+            self.processing_label.config(text=message)
+            self.processing_label.place(
+                relx=0.5, rely=0.9,
+                anchor=tk.CENTER
+            )
+    
+    def clear_processing_message(self):
+        """Remove the processing message from UI"""
+        # Use after() to ensure thread safety with tkinter
+        self.master.after(0, lambda: self._clear_processing_message_ui())
+    
+    def _clear_processing_message_ui(self):
+        """Actually clear the processing message (must be called from main thread)"""
+        if hasattr(self, 'processing_label'):
+            self.processing_label.place_forget()
 
     def delete_face(self, name):
         """
