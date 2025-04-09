@@ -1,3 +1,4 @@
+# ui_module.py - Modified with complete threading fix and cleanup
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
@@ -8,12 +9,205 @@ import face_recognition
 import numpy as np
 import traceback
 from datetime import datetime
-import gc
-import random
+import gc  # Add garbage collection
+import random  # Add random module for periodic GC
+
+class VirtualKeyboard:
+    def __init__(self, master, callback):
+        """
+        Initialize virtual keyboard
+        
+        :param master: Parent tkinter window
+        :param callback: Function to call with keyboard input
+        """
+        self.window = tk.Toplevel(master)
+        self.window.title("Virtual Keyboard")
+        self.window.geometry("600x400")
+        
+        self.callback = callback
+        self.input_var = tk.StringVar()
+        
+        self.input_entry = tk.Entry(self.window, textvariable=self.input_var, font=('Arial', 16))
+        self.input_entry.pack(pady=20)
+        
+        keyboard_layout = [
+            '1234567890',
+            'QWERTYUIOP',
+            'ASDFGHJKL',
+            'ZXCVBNM'
+        ]
+        
+        for row in keyboard_layout:
+            frame = tk.Frame(self.window)
+            frame.pack()
+            for char in row:
+                btn = tk.Button(frame, text=char, width=3, 
+                                command=lambda c=char.lower(): self.add_char(c))
+                btn.pack(side=tk.LEFT)
+        
+        # Special buttons
+        special_frame = tk.Frame(self.window)
+        special_frame.pack(pady=10)
+        
+        tk.Button(special_frame, text="Space", command=lambda: self.add_char(" ")).pack(side=tk.LEFT)
+        tk.Button(special_frame, text="Backspace", command=self.backspace).pack(side=tk.LEFT)
+        tk.Button(special_frame, text="Enter", command=self.confirm).pack(side=tk.LEFT)
+        tk.Button(special_frame, text="Cancel", command=self.cancel).pack(side=tk.LEFT)
+    
+    def add_char(self, char):
+        current = self.input_var.get()
+        self.input_var.set(current + char)
+    
+    def backspace(self):
+        current = self.input_var.get()
+        self.input_var.set(current[:-1])
+    
+    def confirm(self):
+        name = self.input_var.get().strip()
+        if name:
+            self.callback(name)
+        self.window.destroy()
+    
+    def cancel(self):
+        self.window.destroy()
+
 
 class LockerAccessUI:
-    # Keep existing __init__ and other methods but replace these problematic methods
-    
+    def __init__(self, master, camera_manager, face_recognizer, locker_manager):
+        self.master = master
+        self.camera_manager = camera_manager
+        self.face_recognizer = face_recognizer
+        self.locker_manager = locker_manager
+
+        # Configure the root window
+        master.title("Locker Access System")
+        master.attributes('-fullscreen', True)
+        master.geometry("800x480")
+        master.configure(bg="black")
+        
+        # Constants for button area
+        self.BUTTON_HEIGHT = 60
+        
+        # Use grid instead of pack for better layout control
+        master.grid_rowconfigure(0, weight=1)  # Video area expands
+        master.grid_rowconfigure(1, weight=0)  # Button area fixed height
+        master.grid_columnconfigure(0, weight=1)
+        
+        # Create video frame (takes up everything except button area)
+        self.video_frame = tk.Frame(master, bg="black")
+        self.video_frame.grid(row=0, column=0, sticky="nsew")
+        
+        # Create the video label with an initial welcome message
+        self.video_label = tk.Label(self.video_frame, bg="black", 
+                                    text="Starting camera...", fg="white",
+                                    font=('Arial', 24))
+        self.video_label.pack(fill=tk.BOTH, expand=True)
+        
+        # Create button area with fixed height
+        self.button_area = tk.Frame(master, bg="black", height=self.BUTTON_HEIGHT)
+        self.button_area.grid(row=1, column=0, sticky="ew")
+        self.button_area.grid_propagate(False)  # Prevent this frame from resizing
+        
+        # Create buttons directly in button area
+        self.create_buttons(self.button_area)
+        
+        # Initialize recognition variables
+        self.recognized_faces = []
+        self.recognition_lock = threading.Lock()
+        self.last_recognition_time = datetime.now()
+        self.running = True
+        self.ui_initialized = False
+        self.registration_active = False
+        
+        # Create a threading event for controlling the recognition thread
+        self.recognition_paused = threading.Event()
+        self.recognition_paused.clear()  # Not paused initially
+        
+        # Status var for internal messages
+        self.status_var = tk.StringVar()
+        
+        # Pre-render a placeholder image for the UI
+        self.placeholder_frame = self.create_placeholder_frame(800, 380)
+        
+        # Create processing label
+        self.processing_label = tk.Label(
+            self.video_frame,
+            text="",
+            font=('Arial', 18),
+            bg='black',
+            fg='white',
+            bd=2,
+            relief=tk.RAISED
+        )
+        
+        # Check camera initialization
+        try:
+            if not self.camera_manager or not self.camera_manager.picam2:
+                print("[UI] Camera initialization failed")
+        except Exception as e:
+            print(f"[UI] Camera error: {str(e)}")
+        
+        # Update UI immediately
+        master.update_idletasks()
+        
+        # Start the recognition thread
+        self.recognition_thread = threading.Thread(target=self.run_face_recognition_loop, daemon=True)
+        self.recognition_thread.start()
+        
+        # Start the video update
+        self.update_video()
+
+    def create_placeholder_frame(self, width, height):
+        """Create a placeholder frame with welcome text"""
+        try:
+            frame = np.zeros((height, width, 3), dtype=np.uint8)
+            # Add welcome text
+            cv2.putText(frame, "Locker Access System", (width//2-150, height//2-30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+            cv2.putText(frame, "Starting camera...", (width//2-120, height//2+30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2)
+            return frame
+        except Exception as e:
+            print(f"[UI] Error creating placeholder frame: {str(e)}")
+            # Return a simple black frame as fallback
+            return np.zeros((height, width, 3), dtype=np.uint8)
+
+    def create_buttons(self, parent):
+        # Create button frame at the bottom of button area
+        button_frame = tk.Frame(parent, bg="black")
+        button_frame.pack(fill=tk.BOTH, expand=True)  # Fill the entire button area
+
+        # Define buttons
+        buttons = [
+            ("Add Face", self.show_add_face_keyboard),
+            ("Delete Face", self.show_delete_face_keyboard),
+            ("Exit", self.exit_program)
+        ]
+
+        # Create each button
+        for text, command in buttons:
+            btn = tk.Button(button_frame, text=text, command=command, 
+                           font=('Arial', 14), height=1)
+            btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+
+    def show_add_face_keyboard(self):
+        """Show keyboard for adding a new face"""
+        try:
+            VirtualKeyboard(self.master, self.register_face)
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open keyboard: {str(e)}")
+            print(f"[UI] Keyboard error: {str(e)}")
+            traceback.print_exc()
+
+    def show_delete_face_keyboard(self):
+        """Show keyboard for deleting a face"""
+        try:
+            VirtualKeyboard(self.master, self.delete_face)
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open keyboard: {str(e)}")
+            print(f"[UI] Keyboard error: {str(e)}")
+            traceback.print_exc()
+
     def register_face(self, name):
         """
         Register a new face
@@ -47,6 +241,16 @@ class LockerAccessUI:
             daemon=True
         )
         registration_thread.start()
+    
+    def pause_recognition(self):
+        """Pause the face recognition thread"""
+        self.recognition_paused.set()
+        print("[UI] Recognition paused")
+    
+    def resume_recognition(self):
+        """Resume the face recognition thread"""
+        self.recognition_paused.clear()
+        print("[UI] Recognition resumed")
     
     def _register_face_worker(self, name):
         """Worker thread for face registration"""
@@ -113,8 +317,11 @@ class LockerAccessUI:
             
         finally:
             # Make sure to clean up and release resources
-            del frame
-            del rgb_frame
+            try:
+                del frame
+                del rgb_frame
+            except:
+                pass
             gc.collect()
             
             # Schedule cleanup to run on the main thread
@@ -138,6 +345,77 @@ class LockerAccessUI:
         # Force an update of the video display
         self.master.after(10, self.update_video)
     
+    def show_processing_message(self, message):
+        """Show a processing message on the UI"""
+        # Use after() to ensure thread safety with tkinter
+        self.master.after(0, lambda: self._show_processing_message_ui(message))
+    
+    def _show_processing_message_ui(self, message):
+        """Actually update the UI with processing message (must be called from main thread)"""
+        # Update the processing label
+        self.processing_label.config(text=message)
+        # Position at center bottom of video frame
+        self.processing_label.place(
+            relx=0.5, rely=0.9,
+            anchor=tk.CENTER
+        )
+    
+    def clear_processing_message(self):
+        """Remove the processing message from UI"""
+        # Use after() to ensure thread safety with tkinter
+        self.master.after(0, lambda: self._clear_processing_message_ui())
+    
+    def _clear_processing_message_ui(self):
+        """Actually clear the processing message (must be called from main thread)"""
+        self.processing_label.place_forget()
+
+    def delete_face(self, name):
+        """
+        Delete a registered face
+        
+        :param name: Name to delete
+        """
+        try:
+            name = name.lower().strip()
+            if not name:
+                messagebox.showerror("Error", "Invalid name")
+                return
+                
+            if name in self.face_recognizer.known_names:
+                index = self.face_recognizer.known_names.index(name)
+                self.face_recognizer.known_names.pop(index)
+                self.face_recognizer.known_encodings.pop(index)
+                self.face_recognizer.save_encodings()
+                
+                # Also remove locker assignment if it exists
+                if name in self.locker_manager.lockers:
+                    del self.locker_manager.lockers[name]
+                    self.locker_manager.save_lockers()
+                    
+                messagebox.showinfo("Success", f"Deleted {name}")
+            else:
+                messagebox.showerror("Error", f"Name '{name}' not found")
+        except Exception as e:
+            messagebox.showerror("Error", f"Deletion failed: {str(e)}")
+            print(f"[UI] Deletion error: {str(e)}")
+            traceback.print_exc()
+
+    def exit_program(self):
+        """Exit the application"""
+        try:
+            if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
+                self.running = False
+                if self.camera_manager:
+                    self.camera_manager.stop()
+                if self.locker_manager:
+                    self.locker_manager.cleanup()
+                # Force cleanup
+                self.master.after(100, self.master.destroy)
+        except Exception as e:
+            print(f"[UI] Error during shutdown: {str(e)}")
+            traceback.print_exc()
+            self.master.destroy()
+
     def update_video(self):
         """Update the video display with the current camera frame"""
         if not self.running:
