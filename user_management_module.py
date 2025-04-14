@@ -8,7 +8,7 @@ import time
 from config import ENCODINGS_FILE, LOCKERS_FILE
 
 # Get face data
-names = self.face_recognizer.known_names
+names = face_recognizer.known_names
         
 # Add each user to the treeview
 for name in sorted(names):
