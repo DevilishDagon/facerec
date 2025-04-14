@@ -46,12 +46,17 @@ def remove_orphaned_lockers():
     known_names = set(name.lower() for name in face_data.get("names", []))
 
     lockers = load_data(LOCKERS_FILE)
-    updated_lockers = {name: data for name, data in lockers.items() if name in known_names}
+
+    # Only keep lockers for users still present in face data (normalized)
+    updated_lockers = {
+        name: data for name, data in lockers.items()
+        if name.lower() in known_names
+    }
 
     with open(LOCKERS_FILE, "wb") as f:
         pickle.dump(updated_lockers, f)
 
-    print("Orphaned lockers removed.")
+    print("✅ Orphaned lockers removed.")
 
 
 if __name__ == "__main__":
