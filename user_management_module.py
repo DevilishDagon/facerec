@@ -113,4 +113,4 @@ class UserManagementUI:
         if self.return_callback:
             self.return_callback()
 
-refresh_users()
+refresh_users(self)
