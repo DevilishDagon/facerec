@@ -150,3 +150,32 @@ class FaceRecognitionManager:
             print(f"Error registering face: {e}")
             traceback.print_exc()
             return False
+
+    def delete_face(self, name, locker_manager=None):
+        name = name.lower()
+        updated_encodings = []
+        updated_names = []
+        removed = False
+    
+        for encoding, stored_name in zip(self.known_encodings, self.known_names):
+            if stored_name.lower() != name:
+                updated_encodings.append(encoding)
+                updated_names.append(stored_name)
+            else:
+                removed = True
+    
+        if not removed:
+            print(f"❌ No face found for '{name}'")
+            return
+    
+        with open(self.encodings_path, "wb") as f:
+            pickle.dump({"encodings": updated_encodings, "names": updated_names}, f)
+    
+        self.known_encodings = updated_encodings
+        self.known_names = updated_names
+        print(f"✅ Deleted face for '{name}'")
+    
+        if locker_manager and name in locker_manager.lockers:
+            del locker_manager.lockers[name]
+            locker_manager.save_lockers()
+            print(f"🧹 Deleted locker for '{name}'")
