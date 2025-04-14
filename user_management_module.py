@@ -105,7 +105,7 @@ class UserManagementUI:
                 locker_num = str(locker_info['locker']) if 'locker' in locker_info else "Error"
                 status = "Available"
             
-            self.treeview.insert("", tk.END, values=(name.title(), locker_num, status))
+            print(values=(name.title(), locker_num, status))
     
     def return_to_main(self):
         """Return to main screen"""
@@ -113,4 +113,4 @@ class UserManagementUI:
         if self.return_callback:
             self.return_callback()
 
-print(values=(name.title(), locker_num, status))
+refresh_users()
