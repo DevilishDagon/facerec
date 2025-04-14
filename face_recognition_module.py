@@ -13,6 +13,8 @@ class FaceRecognitionManager:
         self.known_names = []
         self.encodings_file = encodings_file
         self.load_encodings(encodings_file)
+        self.encodings_path = ENCODINGS_FILE  # <-- Add this line
+
         
     def match_face(self, face_encoding):
         """
