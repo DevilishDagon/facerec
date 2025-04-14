@@ -152,7 +152,8 @@ class FaceRecognitionManager:
             return False
 
     def delete_face(self, name, locker_manager=None):
-        name = name.lower()  # Normalize
+        name = name.strip().lower()
+        print(f"[DEBUG] Attempting to delete face: '{name}'")
     
         updated_encodings = []
         updated_names = []
@@ -163,25 +164,36 @@ class FaceRecognitionManager:
                 updated_encodings.append(encoding)
                 updated_names.append(stored_name)
             else:
+                print(f"[DEBUG] Match found for '{stored_name}', removing.")
                 removed = True
     
         if not removed:
-            print(f"❌ No face found for '{name}'")
-            return
+            print(f"❌ No face encoding found for '{name}'")
+            raise Exception(f"No encoding found for '{name}'")
     
+        # Save new encodings
         with open(self.encodings_path, "wb") as f:
             pickle.dump({"encodings": updated_encodings, "names": updated_names}, f)
     
+        # Update internal memory
         self.known_encodings = updated_encodings
         self.known_names = updated_names
-        print(f"✅ Deleted face for '{name}'")
+        print(f"✅ Encoding for '{name}' deleted.")
     
+        # Locker removal
         if locker_manager:
-            locker_keys = list(locker_manager.lockers.keys())
-            for key in locker_keys:
+            found_key = None
+            for key in locker_manager.lockers.keys():
                 if key.lower() == name:
-                    del locker_manager.lockers[key]
-                    locker_manager.save_lockers()
-                    print(f"🧹 Deleted locker for '{key}'")
+                    found_key = key
                     break
     
+            if found_key:
+                print(f"[DEBUG] Removing locker for '{found_key}'")
+                del locker_manager.lockers[found_key]
+                locker_manager.save_lockers()
+                print(f"🧹 Locker for '{found_key}' removed.")
+            else:
+                print(f"⚠️ No locker assignment found for '{name}'")
+    
+        
