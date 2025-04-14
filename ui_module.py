@@ -422,45 +422,26 @@ class LockerAccessUI:
         """Actually clear the processing message (must be called from main thread)"""
         self.processing_label.place_forget()
 
-    def delete_face(self, name, locker_manager=None):
-        """
-        Deletes the face encoding and optionally clears the locker assignment.
-        
-        :param name: Name of the user to delete
-        :param locker_manager: Instance of LockerManager to update locker data
-        """
-        name = name.lower()
-        updated_encodings = []
-        updated_names = []
+    def delete_face(self, name):
+        """Callback from virtual keyboard to delete a user"""
+        self.keyboard_active = False
     
-        removed = False
-    
-        for encoding, stored_name in zip(self.known_encodings, self.known_names):
-            if stored_name.lower() != name:
-                updated_encodings.append(encoding)
-                updated_names.append(stored_name)
-            else:
-                removed = True
-    
-        if not removed:
-            print(f"❌ No face found for '{name}'")
+        name = name.strip().lower()
+        if not name:
+            messagebox.showerror("Error", "Invalid name")
+            self.resume_recognition()
             return
     
-        # Save updated data
-        with open(self.encodings_path, "wb") as f:
-            pickle.dump({"encodings": updated_encodings, "names": updated_names}, f)
+        confirm = messagebox.askyesno("Confirm Deletion", f"Delete face and locker for '{name.title()}'?")
+        if not confirm:
+            self.resume_recognition()
+            return
     
-        print(f"✅ Face encoding removed for '{name}'")
+        # Delegate deletion to the face recognizer and pass the locker manager
+        self.face_recognizer.delete_face(name, locker_manager=self.locker_manager)
     
-        # Update internal state
-        self.known_encodings = updated_encodings
-        self.known_names = updated_names
-    
-        # Optionally remove locker
-        if locker_manager and name in locker_manager.lockers:
-            del locker_manager.lockers[name]
-            locker_manager.save_lockers()
-            print(f"🧹 Locker assignment removed for '{name}'")
+        messagebox.showinfo("Deleted", f"{name.title()} has been deleted.")
+        self.resume_recognition()
 
     def exit_program(self):
         """Exit the application"""
