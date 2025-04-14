@@ -430,17 +430,29 @@ class LockerAccessUI:
         if not name:
             messagebox.showerror("Error", "Invalid name")
             self.resume_recognition()
+            if self.current_keyboard:
+                self.current_keyboard.close()
             return
     
         confirm = messagebox.askyesno("Confirm Deletion", f"Delete face and locker for '{name.title()}'?")
         if not confirm:
             self.resume_recognition()
+            if self.current_keyboard:
+                self.current_keyboard.close()
             return
     
-        # Delegate deletion to the face recognizer and pass the locker manager
-        self.face_recognizer.delete_face(name, locker_manager=self.locker_manager)
+        try:
+            # ✅ This is key — make sure FaceRecognitionManager has the correct method
+            self.face_recognizer.delete_face(name, locker_manager=self.locker_manager)
+            messagebox.showinfo("Deleted", f"{name.title()} has been deleted.")
+        except Exception as e:
+            print(f"[UI] Error during deletion: {e}")
+            traceback.print_exc()
+            messagebox.showerror("Error", f"Failed to delete {name.title()}.")
     
-        messagebox.showinfo("Deleted", f"{name.title()} has been deleted.")
+        if self.current_keyboard:
+            self.current_keyboard.close()
+    
         self.resume_recognition()
 
     def exit_program(self):
