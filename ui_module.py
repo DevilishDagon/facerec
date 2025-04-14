@@ -719,3 +719,39 @@ class LockerAccessUI:
                 gc.collect()
                 
         print("[UI] Face recognition thread stopped")
+
+    def trigger_deletion_glitch(self, name):
+        """Visually glitch the screen and show an ominous message"""
+        glitch_duration = 1000  # milliseconds
+    
+        ominous_messages = [
+            f"{name.title()} has been consumed.",
+            f"The system forgets... but we remember.",
+            f"{name.title()} is no longer part of this reality.",
+            f"Identity erased. Traces remain.",
+            f"{name.title()} screamed in silence.",
+            f"A shadow lifts. Another descends."
+        ]
+    
+        message = random.choice(ominous_messages)
+    
+        # Create a black full-screen frame to overlay
+        overlay = tk.Frame(self.video_frame, bg="black")
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+    
+        # Flash random colors for glitch effect
+        def flash_glitch(iteration=0):
+            if iteration < 10:
+                color = random.choice(["#111", "#222", "#444", "#00ff00", "#ff0044", "#5500ff"])
+                overlay.config(bg=color)
+                self.master.after(50, lambda: flash_glitch(iteration + 1))
+            else:
+                # Show the final ominous message
+                label = tk.Label(overlay, text=message, font=("Arial", 20, "bold"),
+                                 bg="black", fg="white", wraplength=600, justify="center")
+                label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+    
+                # Hide everything after a pause
+                self.master.after(glitch_duration, overlay.destroy)
+    
+        flash_glitch()
