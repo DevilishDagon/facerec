@@ -442,18 +442,20 @@ class LockerAccessUI:
             return
     
         try:
-            # ✅ This is key — make sure FaceRecognitionManager has the correct method
             self.face_recognizer.delete_face(name, locker_manager=self.locker_manager)
-            messagebox.showinfo("Deleted", f"{name.title()} has been deleted.")
+    
+            # 🔥 TRIGGER GLITCH EFFECT HERE
+            self.trigger_deletion_glitch(name)
+    
         except Exception as e:
-            print(f"[UI] Error during deletion: {e}")
             traceback.print_exc()
             messagebox.showerror("Error", f"Failed to delete {name.title()}.")
     
         if self.current_keyboard:
             self.current_keyboard.close()
     
-        self.resume_recognition()
+        # Resume recognition *after a slight delay* to let the glitch animation finish
+        self.master.after(1500, self.resume_recognition)
 
     def exit_program(self):
         """Exit the application"""
