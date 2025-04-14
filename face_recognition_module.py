@@ -160,40 +160,42 @@ class FaceRecognitionManager:
         removed = False
     
         for encoding, stored_name in zip(self.known_encodings, self.known_names):
+            print(f"[DEBUG] Checking stored name: '{stored_name}'")
             if stored_name.lower() != name:
                 updated_encodings.append(encoding)
                 updated_names.append(stored_name)
             else:
-                print(f"[DEBUG] Match found for '{stored_name}', removing.")
+                print(f"[DEBUG] Match found: '{stored_name}', removing.")
                 removed = True
     
         if not removed:
-            print(f"❌ No face encoding found for '{name}'")
+            print(f"❌ No encoding found for '{name}'")
             raise Exception(f"No encoding found for '{name}'")
     
-        # Save new encodings
+        # Save updated encodings
         with open(self.encodings_path, "wb") as f:
             pickle.dump({"encodings": updated_encodings, "names": updated_names}, f)
     
-        # Update internal memory
         self.known_encodings = updated_encodings
         self.known_names = updated_names
         print(f"✅ Encoding for '{name}' deleted.")
     
-        # Locker removal
+        # Handle locker cleanup
         if locker_manager:
             found_key = None
             for key in locker_manager.lockers.keys():
+                print(f"[DEBUG] Comparing locker key: '{key}'")
                 if key.lower() == name:
                     found_key = key
                     break
     
             if found_key:
-                print(f"[DEBUG] Removing locker for '{found_key}'")
+                print(f"[DEBUG] Removing locker for: '{found_key}'")
                 del locker_manager.lockers[found_key]
                 locker_manager.save_lockers()
                 print(f"🧹 Locker for '{found_key}' removed.")
             else:
-                print(f"⚠️ No locker assignment found for '{name}'")
+                print(f"⚠️ No locker found for '{name}'")
+
     
         
