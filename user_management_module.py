@@ -1,3 +1,12 @@
+import os
+import pickle
+import tkinter as tk
+from tkinter import ttk
+import traceback
+from PIL import Image, ImageTk
+import time
+from config import ENCODINGS_FILE, LOCKERS_FILE
+
 # Get face data
 names = self.face_recognizer.known_names
         
