@@ -1,7 +1,7 @@
 import face_recognition_module
 
 # Get face data
-names = face_recognition_module
+names = face_recognition_module.known_names
         
 # Add each user to the treeview
 for name in (names):
