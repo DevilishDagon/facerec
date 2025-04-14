@@ -422,45 +422,45 @@ class LockerAccessUI:
         """Actually clear the processing message (must be called from main thread)"""
         self.processing_label.place_forget()
 
-    def delete_face(self, name):
+    def delete_face(self, name, locker_manager=None):
         """
-        Delete a registered face
+        Deletes the face encoding and optionally clears the locker assignment.
         
-        :param name: Name to delete
+        :param name: Name of the user to delete
+        :param locker_manager: Instance of LockerManager to update locker data
         """
-        # Reset keyboard flag
-        self.keyboard_active = False
-        
-        try:
-            name = name.lower().strip()
-            if not name:
-                messagebox.showerror("Error", "Invalid name")
-                # Resume recognition
-                self.resume_recognition()
-                return
-                
-            if name in self.face_recognizer.known_names:
-                index = self.face_recognizer.known_names.index(name)
-                self.face_recognizer.known_names.pop(index)
-                self.face_recognizer.known_encodings.pop(index)
-                self.face_recognizer.save_encodings()
-                
-                # Also remove locker assignment if it exists
-                if name in self.locker_manager.lockers:
-                    del self.locker_manager.lockers[name]
-                    self.locker_manager.save_lockers()
-                    
-                messagebox.showinfo("Success", f"Deleted {name}")
+        name = name.lower()
+        updated_encodings = []
+        updated_names = []
+    
+        removed = False
+    
+        for encoding, stored_name in zip(self.known_encodings, self.known_names):
+            if stored_name.lower() != name:
+                updated_encodings.append(encoding)
+                updated_names.append(stored_name)
             else:
-                messagebox.showerror("Error", f"Name '{name}' not found")
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Deletion failed: {str(e)}")
-            print(f"[UI] Deletion error: {str(e)}")
-            traceback.print_exc()
-        finally:
-            # Resume recognition in any case
-            self.resume_recognition()
+                removed = True
+    
+        if not removed:
+            print(f"❌ No face found for '{name}'")
+            return
+    
+        # Save updated data
+        with open(self.encodings_path, "wb") as f:
+            pickle.dump({"encodings": updated_encodings, "names": updated_names}, f)
+    
+        print(f"✅ Face encoding removed for '{name}'")
+    
+        # Update internal state
+        self.known_encodings = updated_encodings
+        self.known_names = updated_names
+    
+        # Optionally remove locker
+        if locker_manager and name in locker_manager.lockers:
+            del locker_manager.lockers[name]
+            locker_manager.save_lockers()
+            print(f"🧹 Locker assignment removed for '{name}'")
 
     def exit_program(self):
         """Exit the application"""
