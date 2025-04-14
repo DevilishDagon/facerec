@@ -732,9 +732,9 @@ class LockerAccessUI:
             f"{name.title()} is no longer part of this reality.",
             f"Identity erased. Traces remain.",
             f"{name.title()} screamed in silence.",
-            f"A shadow lifts. Another descends."
-            f"It hurts when I think."
-            f"Look behind you."
+            f"A shadow lifts. Another descends.",
+            f"It hurts when I think.",
+            f"Look behind you.",
             f"Nowhere to be found."
         ]
     
