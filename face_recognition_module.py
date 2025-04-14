@@ -152,7 +152,8 @@ class FaceRecognitionManager:
             return False
 
     def delete_face(self, name, locker_manager=None):
-        name = name.lower()
+        name = name.lower()  # Normalize
+    
         updated_encodings = []
         updated_names = []
         removed = False
@@ -175,7 +176,12 @@ class FaceRecognitionManager:
         self.known_names = updated_names
         print(f"✅ Deleted face for '{name}'")
     
-        if locker_manager and name in locker_manager.lockers:
-            del locker_manager.lockers[name]
-            locker_manager.save_lockers()
-            print(f"🧹 Deleted locker for '{name}'")
+        if locker_manager:
+            locker_keys = list(locker_manager.lockers.keys())
+            for key in locker_keys:
+                if key.lower() == name:
+                    del locker_manager.lockers[key]
+                    locker_manager.save_lockers()
+                    print(f"🧹 Deleted locker for '{key}'")
+                    break
+    
