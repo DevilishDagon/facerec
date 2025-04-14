@@ -56,6 +56,6 @@ def remove_orphaned_lockers():
 
 if __name__ == "__main__":
     display_users()
-    answer = lower.(input("Remove orphan lockers? y/n: "))
+    answer = (input("Remove orphan lockers? y/n: ").lower
     if answer == "y":
         remove_orphaned_lockers()
