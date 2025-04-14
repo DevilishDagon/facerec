@@ -4,7 +4,7 @@ import face_recognition_module
 names = face_recognition_module
         
 # Add each user to the treeview
-for name in sorted(names):
+for name in (names):
 	locker_num = "Not Assigned"
 	status = "No Locker"
 	            
