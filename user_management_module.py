@@ -112,3 +112,5 @@ class UserManagementUI:
         self.frame.destroy()
         if self.return_callback:
             self.return_callback()
+
+print(values=(name.title(), locker_num, status))
