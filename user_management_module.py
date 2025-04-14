@@ -1,14 +1,7 @@
-import os
-import pickle
-import tkinter as tk
-from tkinter import ttk
-import traceback
-from PIL import Image, ImageTk
-import time
-from config import ENCODINGS_FILE, LOCKERS_FILE
+import face_recognition_module
 
 # Get face data
-names = face_recognizer.known_names
+names = face_recognition_module
         
 # Add each user to the treeview
 for name in sorted(names):
